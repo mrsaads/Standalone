@@ -1,0 +1,73 @@
+# Render Blueprint for the standalone Improvexus app. Import this repo in Render and it will
+# offer to create the service below from this file ("New +" → "Blueprint").
+#
+# This defines ONE web service (Next.js, standard Node — no SEPARATE background worker service is
+# needed: Drive filing and email sending are a persisted queue in Postgres, processed by an
+# in-process poller that starts inside this same service via instrumentation.ts — see
+# lib/delivery-worker.ts). Uses the free-tier-friendly starter plan; change `plan` once real
+# traffic needs more.
+#
+# Every env var below with `sync: false` must be entered by hand in the Render dashboard after
+# import — see the handover's credential checklist for exactly what each one is and where to get
+# it. None of them are guessed or invented here.
+services:
+  - type: web
+    name: improvexus
+    runtime: node
+    plan: starter
+    region: oregon
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    healthCheckPath: /login
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.2
+      # Supabase (Auth + Postgres)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_DB_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      # Access control
+      - key: ADMIN_EMAILS
+        sync: false
+      # AI generation
+      - key: AI_PROVIDER
+        value: openai
+      - key: AI_MODEL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: AI_REASONING_EFFORT
+        value: medium
+      - key: AI_WEB_RESEARCH
+        value: "true"
+      # Google Drive (owner-only OAuth)
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_OAUTH_REDIRECT_URI
+        sync: false
+      - key: DRIVE_TOKEN_ENCRYPTION_KEY
+        sync: false
+      # Resend (application notification emails)
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_NOTIFICATIONS
+        sync: false
+      - key: RESEND_FROM_PROMOTIONAL
+        sync: false
+      # APP_ORIGIN is NOT required here: Render sets RENDER_EXTERNAL_URL automatically on every
+      # service, and lib/delivery-worker.ts falls back to it when building the "your audit is
+      # ready" email's report link. Only set APP_ORIGIN by hand if serving from a custom domain
+      # that should appear in that link instead of the onrender.com one.

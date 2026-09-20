@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+
+# Next.js build output
+.next/
+out/
+
+# Local env files — never commit real secrets. .env.example is the template and IS tracked.
+.env
+.env.local
+.env.*.local
+.env.local.test-runtime
+
+# TypeScript incremental build info
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

@@ -1,0 +1,3 @@
+[{"results":[
+  {"id":"audit-001","user_id":"chatgpt-user-001","user_email":"jawad@example.com","profile_key":"upwork.com-freelancers-jawad","profile_url":"https://www.upwork.com/freelancers/jawad","profile_name":"Jawad A.","content_hash":"abc123","report_json":"{\"findings\":[]}","score":18.5,"pass_count":15,"weak_count":7,"fail_count":1,"provider":"OpenAI · gpt-5.2","created_at":"2026-08-01T12:00:00Z"}
+],"success":true,"meta":{}}]
