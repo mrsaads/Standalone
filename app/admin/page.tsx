@@ -23,9 +23,17 @@ export default async function AdminPage() {
     mobile: profiles.mobile,
     upworkLink: profiles.upworkLink,
     role: profiles.role,
+    plan: profiles.plan,
+    planUpdatedAt: profiles.planUpdatedAt,
     createdAt: profiles.createdAt,
     lastSeenAt: profiles.lastSeenAt,
     auditCount: sql<number>`(select count(*) from ${profileAudits} where ${profileAudits.userId} = ${profiles.id})::int`,
+    // Deliberately the *only* fields read from Supabase's own auth.users table: whether the email is
+    // verified and when the account last actually signed in. Never the password hash, never a
+    // session/refresh token — see lib/auth.ts and the standing rule that the admin panel shows
+    // verification status and a reset action instead of any credential.
+    emailVerified: sql<boolean>`exists (select 1 from auth.users u where u.id = ${profiles.id} and u.email_confirmed_at is not null)`,
+    lastSignInAt: sql<string | null>`(select u.last_sign_in_at::text from auth.users u where u.id = ${profiles.id})`,
   }).from(profiles).orderBy(desc(profiles.createdAt)).limit(200);
 
   const auditRows = await db.select({
@@ -50,7 +58,7 @@ export default async function AdminPage() {
   return (
     <AdminDashboard
       adminEmail={user.email}
-      users={userRows.map(u => ({ ...u, createdAt: u.createdAt.toISOString(), lastSeenAt: u.lastSeenAt.toISOString() }))}
+      users={userRows.map(u => ({ ...u, createdAt: u.createdAt.toISOString(), lastSeenAt: u.lastSeenAt.toISOString(), planUpdatedAt: u.planUpdatedAt.toISOString() }))}
       audits={auditRows.map(a => ({ ...a, createdAt: a.createdAt.toISOString() }))}
     />
   );

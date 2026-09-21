@@ -22,9 +22,62 @@ export const profiles = pgTable("profiles", {
   mobile: text("mobile").notNull().default(""),
   upworkLink: text("upwork_link").notNull().default(""),
   role: text("role").notNull().default("base"), // "base" | "admin"
+  // Manually managed by an admin from the admin panel only (see app/api/admin/users/[id]/plan) —
+  // there is no payment provider integration, so this is never set by a webhook or a checkout flow.
+  // "free" = preview-only (no PDF/Word download, no AI optimization section); "subscriber" =
+  // full access. Admin accounts get full access regardless of this value (see lib/entitlements.ts).
+  plan: text("plan").notNull().default("free"), // "free" | "subscriber"
+  planUpdatedAt: timestamp("plan_updated_at", { withTimezone: true }).notNull().default(sql`now()`),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => [index("idx_profiles_email").on(table.email)]).enableRLS();
+
+// One row per manual plan change an admin makes from the admin panel. This is the entire "payment
+// details" record for this build: no payment provider is configured, so nothing here is a real
+// card/account number — just what the admin was told and typed in (method/reference/note), kept as
+// a history so a plan change is auditable. See db/schema.ts's paymentRecords comment history and
+// app/api/admin/users/[id]/plan/route.ts.
+export const paymentRecords = pgTable("payment_records", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  recordedByEmail: text("recorded_by_email").notNull(), // the admin who entered this
+  plan: text("plan").notNull(), // the plan this record set the user to
+  amount: real("amount").notNull().default(0),
+  currency: text("currency").notNull().default(""),
+  method: text("method").notNull().default(""), // e.g. "bank_transfer" | "easypaisa" | "cash" | "other"
+  reference: text("reference").notNull().default(""), // transaction id / receipt note, admin-typed
+  note: text("note").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_payment_records_user_created").on(table.userId, table.createdAt)]).enableRLS();
+
+// A user's request for a human ("by person") to do the profile optimization instead of relying on
+// the AI-generated suggestedHeadline/suggestedOverview. Available to any signed-in user regardless
+// of plan — surfaced next to the report's Optimization section either as an alternative (subscriber)
+// or as the only optimization path offered (free tier, where the AI optimization content is locked).
+export const optimizationRequests = pgTable("optimization_requests", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  auditId: uuid("audit_id"), // nullable: the report this request was raised from, when there is one
+  profileUrl: text("profile_url").notNull().default(""),
+  notes: text("notes").notNull().default(""),
+  status: text("status").notNull().default("new"), // "new" | "in_progress" | "done"
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_optimization_requests_status_created").on(table.status, table.createdAt)]).enableRLS();
+
+// Append-only log of admin actions taken from the admin panel (plan changes, optimization-request
+// status changes, and any future admin action). Required so an elevated action is always
+// attributable, never a bare, unauditable write. Never holds credentials or secret values.
+export const adminAuditLog = pgTable("admin_audit_log", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  adminEmail: text("admin_email").notNull(),
+  action: text("action").notNull(), // e.g. "set_plan" | "optimization_request_status"
+  targetType: text("target_type").notNull(), // e.g. "user" | "optimization_request"
+  targetId: text("target_id").notNull(),
+  detail: text("detail").notNull().default(""), // short human-readable summary, never a secret value
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_admin_audit_log_created").on(table.createdAt)]).enableRLS();
 
 export const profileAudits = pgTable("profile_audits", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),

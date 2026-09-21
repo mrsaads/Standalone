@@ -37,5 +37,9 @@ export async function POST(request: Request) {
   }
   // blocked / unavailable / timeout / parse_failed / invalid — no usable text. The frontend keeps the
   // user on the source screen and shows this message rather than advancing to an empty review step.
+  // Logged (outcome only — never the URL's fetched HTML or any profile content) for the same reason
+  // Part 1's AiProviderError diagnostics exist: so a pattern of failures is diagnosable from Render
+  // logs instead of every failure looking identical.
+  console.info("Profile link preview did not return usable text", result.outcome);
   return json({ outcome: result.outcome, message: result.message });
 }

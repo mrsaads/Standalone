@@ -2,6 +2,7 @@ import { and, desc, eq, gte, sql } from "drizzle-orm";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/db";
 import { profileAudits } from "@/db/schema";
+import { entitlementFor } from "@/lib/entitlements";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +26,10 @@ export async function GET() {
       // profileName/score not populated yet) or "failed" row (released allowance, no real report
       // behind it) should never appear in the customer's own history list.
     }).from(profileAudits).where(and(eq(profileAudits.userId, user.id), eq(profileAudits.status, "completed"))).orderBy(desc(profileAudits.createdAt)).limit(8);
+    const entitlement = entitlementFor(user);
     return Response.json({
-      account: { email: user.email, role: user.role, auditsLast7Days: Number(usage?.audits || 0), weeklyLimit: user.role === "admin" ? null : 1 },
+      account: { email: user.email, role: user.role, plan: entitlement.plan, auditsLast7Days: Number(usage?.audits || 0), weeklyLimit: user.role === "admin" ? null : 1 },
+      entitlement,
       audits: rows,
     }, { headers: { "Cache-Control": "no-store" } });
   } catch (error) {

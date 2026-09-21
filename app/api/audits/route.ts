@@ -10,6 +10,17 @@ import { precheckWeeklyLimit, reserveAuditSlot, renewReservationLease, completeR
 import { enqueueDelivery } from "@/lib/delivery-worker";
 import { isTrustedOrigin } from "@/lib/http";
 import { fetchUpworkProfile } from "@/lib/upwork-fetch";
+import { entitlementFor, type Entitlement } from "@/lib/entitlements";
+
+// The AI-generated optimization content (suggestedHeadline/suggestedOverview) is a subscriber
+// perk (see lib/entitlements.ts). The FULL report — including these fields — is always written to
+// the database as-is (so an upgrade later doesn't require regenerating anything), but a free-tier
+// account must never receive them over the wire: hiding the "Optimization" tab in the UI alone
+// would not stop a free account from reading the fields straight out of the API response.
+function redactForEntitlement(report: AuditReport, entitlement: Entitlement): AuditReport {
+  if (entitlement.canOptimize) return report;
+  return { ...report, suggestedHeadline: "", suggestedOverview: "" };
+}
 
 const requestSchema = z.object({
   profileText: z.string().max(40000),
@@ -381,7 +392,13 @@ export async function POST(request: Request) {
     try { await enqueueDelivery(auditId); }
     catch (enqueueError) { console.error("Delivery enqueue failed", enqueueError instanceof Error ? enqueueError.name : "UnknownError"); }
 
-    return json({ audit: report, auditId, account: { role: user.role, weeklyLimit: user.role === "admin" ? null : 1 } });
+    const entitlement = entitlementFor(user);
+    return json({
+      audit: redactForEntitlement(report, entitlement),
+      auditId,
+      entitlement,
+      account: { role: user.role, plan: entitlement.plan, weeklyLimit: user.role === "admin" ? null : 1 },
+    });
   } catch (error) {
     if (error instanceof ReservationLostError) {
       return json({ error: "This request took longer than expected and its session expired. Please try again.", code: "RESERVATION_EXPIRED" }, 409);

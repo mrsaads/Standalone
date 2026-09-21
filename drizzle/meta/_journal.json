@@ -22,6 +22,13 @@
       "when": 1789911067562,
       "tag": "0002_old_warstar",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790024489038,
+      "tag": "0003_workable_paladin",
+      "breakpoints": true
     }
   ]
 }
