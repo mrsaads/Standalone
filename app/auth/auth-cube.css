@@ -1,0 +1,151 @@
+/* Decorative cube for the auth pages. Pure CSS 3D (no images, no canvas/WebGL, nothing to
+   preload) — the whole thing paints in the same frame as the rest of the page, so it never
+   delays or blocks the login form being usable. See auth-cube.tsx for the structure/rationale.
+
+   Layout note: every 3D-transformed level here is positioned with plain `position: absolute` +
+   fixed offsets, deliberately NOT `display: flex`. Chromium (and other engines) can silently
+   flatten `transform-style: preserve-3d` children of a flex (or grid) container regardless of the
+   property being set — every face after the first ends up invisible even though its computed
+   transform and getBoundingClientRect() both look correct. Absolute positioning is the technique
+   every reliable CSS-cube reference implementation uses for exactly this reason. */
+
+:root {
+  --ix-cubie-size: 50px;
+  --ix-cubie-gap: 8px;
+  --ix-cubie-step: calc(var(--ix-cubie-size) + var(--ix-cubie-gap));
+}
+
+.ix-cube-stage {
+  position: absolute;
+  top: 0;
+  right: -30px;
+  bottom: 0;
+  width: 46%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  perspective: 1000px;
+  pointer-events: none;
+  z-index: 0;
+  /* The soft contact-shadow lives here, NOT on .ix-cube-orbit: `filter` on an element with
+     transform-style: preserve-3d forces that element's OWN preserve-3d to compute as `flat` per
+     spec (filter/clip-path/mask/backdrop-filter/contain/isolation all do this — anything that
+     forces a stacking context). That silently flattened every descendant into one plane and was
+     the actual reason no face but the front one ever painted, through several rounds of tweaking
+     tilt/yaw/contrast that couldn't have fixed it. Keeping the shadow on this non-3D ancestor
+     instead avoids the trap entirely. */
+  filter: drop-shadow(0 30px 60px rgba(0, 0, 0, 0.55));
+}
+
+.ix-cube-orbit {
+  position: relative;
+  width: calc(var(--ix-cubie-step) * 3);
+  height: calc(var(--ix-cubie-step) * 3);
+  transform-style: preserve-3d;
+  animation: ix-orbit-spin 34s linear infinite;
+}
+
+.ix-cube-layer {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: var(--ix-cubie-size);
+  transform-style: preserve-3d;
+}
+.ix-cube-layer-0 { top: 0; animation: ix-layer-spin-a 9s ease-in-out infinite; }
+.ix-cube-layer-1 { top: var(--ix-cubie-step); animation: ix-layer-spin-b 9s ease-in-out infinite; }
+.ix-cube-layer-2 { top: calc(var(--ix-cubie-step) * 2); animation: ix-layer-spin-c 9s ease-in-out infinite; }
+
+.ix-cubie {
+  position: absolute;
+  top: 0;
+  left: calc(var(--cubie-col) * var(--ix-cubie-step));
+  width: var(--ix-cubie-size);
+  height: var(--ix-cubie-size);
+  transform-style: preserve-3d;
+}
+
+.ix-cubie-face {
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backface-visibility: hidden;
+}
+.ix-cubie-front {
+  transform: translateZ(calc(var(--ix-cubie-size) / 2));
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.03) 65%);
+  box-shadow: inset 0 0 18px rgba(255, 255, 255, 0.04);
+}
+/* Top and side faces carry most of the "this is a 3D object" read at this size — geometric
+   foreshortening alone is too subtle on a ~50px tile, so the shading contrast between the three
+   faces (light top, mid front, dark side — a plausible single overhead light source) is doing the
+   real work, same as any low-poly 3D render. */
+.ix-cubie-top {
+  transform: rotateX(-90deg) translateZ(calc(var(--ix-cubie-size) / 2));
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.2));
+}
+.ix-cubie-side {
+  transform: rotateY(-90deg) translateZ(calc(var(--ix-cubie-size) / 2));
+  background: linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.55));
+}
+
+/* Base pose is tilted AND yawed (not just tilted): at yaw 0 the side face sits exactly edge-on to
+   the camera and disappears, which is what made earlier passes of this read as a flat grid instead
+   of a cube. Sweeping the full 360° from an already-yawed start keeps a top face and a side face in
+   view at (almost) every point in the loop, not just during the transition. */
+@keyframes ix-orbit-spin {
+  from { transform: rotateX(-30deg) rotateY(-28deg); }
+  to { transform: rotateX(-30deg) rotateY(332deg); }
+}
+
+/* All three layers share one timeline and all read rotateY(multiple-of-360) at 0%/8%/92%/100% —
+   that's the "settle into a solved arrangement" beat, held briefly so it's perceptible, not just a
+   passing instant. Between those beats each layer takes a different path/direction/speed, which is
+   what makes this read as independent sections turning rather than one solid object spinning. */
+@keyframes ix-layer-spin-a {
+  0%, 8% { transform: rotateY(0deg); }
+  35% { transform: rotateY(150deg); }
+  55% { transform: rotateY(210deg); }
+  78% { transform: rotateY(330deg); }
+  92%, 100% { transform: rotateY(360deg); }
+}
+@keyframes ix-layer-spin-b {
+  0%, 8% { transform: rotateY(0deg); }
+  30% { transform: rotateY(-120deg); }
+  60% { transform: rotateY(-260deg); }
+  85% { transform: rotateY(-340deg); }
+  92%, 100% { transform: rotateY(-360deg); }
+}
+@keyframes ix-layer-spin-c {
+  0%, 8% { transform: rotateY(0deg); }
+  20% { transform: rotateY(180deg); }
+  50% { transform: rotateY(360deg); }
+  70% { transform: rotateY(540deg); }
+  92%, 100% { transform: rotateY(720deg); }
+}
+
+/* Reduced motion / lightweight fallback: every animated layer freezes at its identity transform,
+   which is the solved arrangement (no rotation needed to reach it — it's the rest state), so the
+   fallback is a still, correctly-assembled cube rather than a blank box or a broken mid-scramble
+   frame. */
+@media (prefers-reduced-motion: reduce) {
+  /* Freeze, don't flatten: the orbit's own transform IS its base isometric tilt+yaw (not just
+     spin), so the fallback keeps that pose and only removes the animation — otherwise "reduced
+     motion" would also silently undo the pose and leave a flat grid of tiles instead of a
+     recognizable still cube. */
+  .ix-cube-orbit {
+    animation: none !important;
+    transform: rotateX(-30deg) rotateY(-28deg) !important;
+  }
+  .ix-cube-layer-0,
+  .ix-cube-layer-1,
+  .ix-cube-layer-2 {
+    animation: none !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .ix-cube-stage { display: none; }
+}
