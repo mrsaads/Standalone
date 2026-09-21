@@ -2,6 +2,7 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
+import { isTrustedOrigin, resolveAppOrigin } from "@/lib/http";
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
@@ -21,8 +22,7 @@ function isAdminEmail(email: string): boolean {
 
 export async function POST(request: Request) {
   // Matches the same-origin check on every other state-changing route in this app.
-  const requestOrigin = request.headers.get("origin");
-  if (requestOrigin && requestOrigin !== new URL(request.url).origin) return json({ error: "Start signup from this website." }, 403);
+  if (!isTrustedOrigin(request)) return json({ error: "Start signup from this website." }, 403);
 
   let body: unknown;
   try { body = await request.json(); } catch { return json({ error: "The signup request could not be read." }, 400); }
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return json({ error: parsed.error.issues[0]?.message || "Check your signup details." }, 400);
   const { fullName, mobile, upworkLink, email, password } = parsed.data;
 
-  const origin = request.headers.get("origin") || new URL(request.url).origin;
+  const origin = resolveAppOrigin(request);
   const supabase = await createSupabaseServerClient();
   const { data, error } = await supabase.auth.signUp({
     email,

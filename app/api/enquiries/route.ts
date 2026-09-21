@@ -1,10 +1,10 @@
 import { saveEnquiry } from "@/lib/enquiry";
+import { isTrustedOrigin } from "@/lib/http";
 
 const headers={"Cache-Control":"no-store", "X-Content-Type-Options":"nosniff"};
 function json(body: unknown, status: number) { return Response.json(body,{status,headers}); }
 export async function POST(request: Request) {
-  const origin=request.headers.get("origin");
-  if(origin && origin !== new URL(request.url).origin) return json({error:"Please submit this enquiry from the audit page."},403);
+  if(!isTrustedOrigin(request)) return json({error:"Please submit this enquiry from the audit page."},403);
   if(!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return json({error:"Invalid enquiry format."},415);
   if(!request.body) return json({error:"Please complete your enquiry."},400);
   let input: unknown;

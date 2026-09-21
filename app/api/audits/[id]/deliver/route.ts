@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/db";
 import { profileAudits } from "@/db/schema";
 import { requeueDelivery } from "@/lib/delivery-worker";
+import { isTrustedOrigin } from "@/lib/http";
 
 const headers = { "Cache-Control": "no-store" };
 
@@ -21,8 +22,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // Supabase's session cookie is already SameSite=Lax (blocking cross-site POST on its own), but
   // this keeps the CSRF posture consistent across every state-changing route rather than relying
   // on cookie behavior alone.
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return Response.json({ error: "Start this action from the app." }, { status: 403, headers });
+  if (!isTrustedOrigin(request)) return Response.json({ error: "Start this action from the app." }, { status: 403, headers });
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Sign in required." }, { status: 401, headers });
   const { id } = await params;

@@ -7,6 +7,7 @@ import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
 import { precheckWeeklyLimit, reserveAuditSlot, renewReservationLease, completeReservation, releaseReservation, WeeklyLimitError, ReservationLostError } from "@/lib/audit-limit";
 import { enqueueDelivery } from "@/lib/delivery-worker";
+import { isTrustedOrigin } from "@/lib/http";
 
 const requestSchema = z.object({
   profileText: z.string().max(40000),
@@ -214,8 +215,7 @@ function normalize(report: AuditReport, provider: string): AuditReport {
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return json({ error: "Sign in to generate and save an audit." }, 401);
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) return json({ error: "Start the audit from this website." }, 403);
+  if (!isTrustedOrigin(request)) return json({ error: "Start the audit from this website." }, 403);
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) return json({ error: "Invalid audit request." }, 415);
   const length = Number(request.headers.get("content-length") || 0);
   if (length > 75000) return json({ error: "The profile is too large. Keep the request under 75 KB." }, 413);

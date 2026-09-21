@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { completeConnection } from "@/lib/drive";
+import { resolveAppOrigin } from "@/lib/http";
 
 // Must match the cookie name set in app/api/admin/drive/connect/route.ts.
 const STATE_COOKIE = "ix_drive_oauth_state";
@@ -16,7 +17,8 @@ function readCookie(request: Request, name: string) {
 export async function GET(request: Request) {
   const user = await getCurrentUser();
   const url = new URL(request.url);
-  const redirectTo = (path: string) => Response.redirect(`${url.origin}/admin?drive=${path}`, 302);
+  const appOrigin = resolveAppOrigin(request);
+  const redirectTo = (path: string) => Response.redirect(`${appOrigin}/admin?drive=${path}`, 302);
 
   if (!user || user.role !== "admin") return redirectTo("forbidden");
 
