@@ -9,6 +9,7 @@ import { profiles } from "@/db/schema";
 import { precheckWeeklyLimit, reserveAuditSlot, renewReservationLease, completeReservation, releaseReservation, WeeklyLimitError, ReservationLostError } from "@/lib/audit-limit";
 import { enqueueDelivery } from "@/lib/delivery-worker";
 import { isTrustedOrigin } from "@/lib/http";
+import { fetchUpworkProfile } from "@/lib/upwork-fetch";
 
 const requestSchema = z.object({
   profileText: z.string().max(40000),
@@ -58,35 +59,17 @@ async function touchProfile(userId: string) {
   await db.update(profiles).set({ lastSeenAt: new Date() }).where(eq(profiles.id, userId));
 }
 
-function decodeHtml(value: string) {
-  return value
-    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, " ")
-    .replace(/<style\b[^>]*>[\s\S]*?<\/style>/gi, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
+// Thin wrapper over the shared fetchUpworkProfile classifier (lib/upwork-fetch.ts — also used by
+// the no-credit preview endpoint, app/api/profile-preview/route.ts) that keeps this call site's
+// existing throw-to-422 contract: only a "success" or "partial" outcome (real, readable profile
+// text) may reach the AI call below. Every other outcome — blocked/unavailable/timeout/parse_failed/
+// invalid — throws here, which the caller turns into a 422 *before* precheckWeeklyLimit/
+// reserveAuditSlot run, so a failed or blocked import never touches the weekly allowance or an AI
+// provider (see the POST handler below).
 async function tryPublicProfile(url: string) {
-  if (!referenceValid(url)) throw new Error("Use a valid HTTPS Upwork freelancer profile link.");
-  const response = await fetch(url, {
-    redirect: "follow",
-    signal: AbortSignal.timeout(12000),
-    headers: { "User-Agent": "Mozilla/5.0 (compatible; ImprovexusProfileAudit/1.0)" },
-  });
-  if (!response.ok) throw new Error("Upwork did not allow automatic access to this profile. Paste the profile text or upload a document instead.");
-  const type = response.headers.get("content-type") ?? "";
-  if (!type.includes("text/html")) throw new Error("The profile link did not return readable profile information.");
-  const html = await response.text();
-  const text = decodeHtml(html).slice(0, 40000);
-  if (text.length < 500 || /captcha|access denied|verify you are human/i.test(text)) {
-    throw new Error("Upwork blocked or limited the profile content. Paste the profile text or upload a document instead.");
-  }
-  return text;
+  const result = await fetchUpworkProfile(url);
+  if (result.outcome === "success" || result.outcome === "partial") return result.text;
+  throw new Error(result.message);
 }
 
 const criteriaBrief = auditSectionIds
@@ -200,12 +183,24 @@ async function runAnthropic(prompt: string) {
   const model = process.env.AI_MODEL || "claude-sonnet-5";
   const effort = process.env.AI_REASONING_EFFORT || "medium";
   const requestId = randomUUID();
+  // Only a *multi-workspace* Anthropic API key needs this header — the Messages API otherwise
+  // can't tell which workspace's rate limits/billing to charge the request against, and rejects
+  // it with a 400 invalid_request_error ("This API key is not scoped to a workspace..."). A
+  // single-workspace key (the normal case, and the one this app should be configured with) never
+  // needs it. This is an escape hatch for the multi-workspace case, not the primary fix — see the
+  // ANTHROPIC_API_KEY comment in the deployment docs.
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
   let response: Response;
   try {
     response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       signal: AbortSignal.timeout(150000),
-      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      headers: {
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+        "Content-Type": "application/json",
+        ...(workspaceId ? { "anthropic-workspace-id": workspaceId } : {}),
+      },
       body: JSON.stringify({
         model,
         max_tokens: 12000,
