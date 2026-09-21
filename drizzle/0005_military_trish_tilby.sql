@@ -1,0 +1,1 @@
+ALTER TABLE "profile_audits" ADD COLUMN "used_bonus_credit" boolean DEFAULT false NOT NULL;

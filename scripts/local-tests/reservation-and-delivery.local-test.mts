@@ -206,6 +206,51 @@ async function main() {
     assert(result.sent === true && result.skipped === true, `repeat send was skipped as already-sent, no duplicate attempted (got ${JSON.stringify(result)})`);
   }
 
+  // ── I: admin-granted bonus audit credits (Managed Client Portal spec, Part 3) ──────────────────
+  // "Their included audit allowance can be granted separately by admin. Keep audit allowances
+  // configurable rather than inventing a paid plan." This proves the whole lifecycle — grant,
+  // spend once the weekly slot is already used, refund on failure, never touched when unused —
+  // entirely in Postgres, with no AI call anywhere in this section.
+  section("I. Admin-granted bonusAuditCredits: spent only after the weekly slot is used, refunded on failure");
+  await resetAuditsForUser();
+  await db.update(profiles).set({ bonusAuditCredits: 0 }).where(eq(profiles.id, userId));
+  {
+    // I1: with zero bonus credits, a second request within the week is still correctly blocked.
+    const first = await reserveAuditSlot(user, "profile-i1", "hash-i1", "");
+    let blockedWithoutCredit = false;
+    try { await reserveAuditSlot(user, "profile-i1b", "hash-i1b", ""); }
+    catch (error) { blockedWithoutCredit = error instanceof WeeklyLimitError; }
+    assert(blockedWithoutCredit, "with 0 bonus credits, a second reservation this week is still rejected as WeeklyLimitError");
+    await completeReservation(first.auditId, first.leaseToken, { profileName: "I1", reportJson: "{}", score: 10, passCount: 1, weakCount: 0, failCount: 0, provider: "test" });
+
+    // I2: grant 1 bonus credit — the next reservation (still within the same week) is now admitted,
+    // spending the credit rather than the (already-used) weekly slot.
+    await db.update(profiles).set({ bonusAuditCredits: 1 }).where(eq(profiles.id, userId));
+    const second = await reserveAuditSlot(user, "profile-i2", "hash-i2", "");
+    const [afterSpend] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    assert(afterSpend?.bonusAuditCredits === 0, `granting 1 bonus credit admits the next reservation and spends it (bonusAuditCredits now ${afterSpend?.bonusAuditCredits})`);
+    const [secondRow] = await db.select({ usedBonusCredit: profileAudits.usedBonusCredit }).from(profileAudits).where(eq(profileAudits.id, second.auditId));
+    assert(secondRow?.usedBonusCredit === true, "the reservation row itself is marked usedBonusCredit=true");
+
+    // I3: a third attempt is blocked again — the credit was a one-time grant, not unlimited.
+    let blockedAfterSpend = false;
+    try { await reserveAuditSlot(user, "profile-i3", "hash-i3", ""); }
+    catch (error) { blockedAfterSpend = error instanceof WeeklyLimitError; }
+    assert(blockedAfterSpend, "after the single bonus credit is spent, a further reservation is blocked again");
+
+    // I4: the spent credit is refunded if that generation then fails — a failed AI call must never
+    // permanently cost the account a credit any more than it costs them the weekly slot.
+    await releaseReservation(second.auditId, second.leaseToken);
+    const [afterRefund] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    assert(afterRefund?.bonusAuditCredits === 1, `a failed generation refunds the spent bonus credit (bonusAuditCredits now ${afterRefund?.bonusAuditCredits})`);
+
+    // I5: releasing a reservation that did NOT use a bonus credit must never touch the balance.
+    const third = await reserveAuditSlot(user, "profile-i5", "hash-i5", ""); // spends the refunded credit again (weekly slot still used from I1/I2)
+    await completeReservation(third.auditId, third.leaseToken, { profileName: "I5", reportJson: "{}", score: 10, passCount: 1, weakCount: 0, failCount: 0, provider: "test" });
+    const [afterI5] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    assert(afterI5?.bonusAuditCredits === 0, `a completed (non-released) bonus-credit reservation leaves the balance spent, not refunded (bonusAuditCredits now ${afterI5?.bonusAuditCredits})`);
+  }
+
   await db.delete(deliveryJobs).where(eq(deliveryJobs.auditId, completedAuditId));
   await db.delete(emailNotifications).where(eq(emailNotifications.userEmail, user.email));
   await resetAuditsForUser();

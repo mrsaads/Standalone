@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { profileAudits } from "@/db/schema";
+import { profileAudits, profiles } from "@/db/schema";
 import type { AppUser } from "@/lib/auth";
 
 // How long a "reserved" row (AI call in flight, no report yet) is still treated as holding the
@@ -59,7 +59,13 @@ export async function precheckWeeklyLimit(user: AppUser) {
   const [recent] = await db.select({ id: profileAudits.id }).from(profileAudits)
     .where(recentAllowanceCondition(user.id))
     .limit(1);
-  if (recent) throw new WeeklyLimitError();
+  if (!recent) return;
+  // The weekly free slot is already used this week — but an admin may have granted this account
+  // (typically a managed client) extra one-off credits, configured per-account rather than via any
+  // paid plan (see profiles.bonusAuditCredits). This is a fast, non-authoritative pre-check only;
+  // the real race-safe spend happens inside reserveAuditSlot()'s transaction below.
+  const [row] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, user.id)).limit(1);
+  if (!row || row.bonusAuditCredits <= 0) throw new WeeklyLimitError();
 }
 
 // The real enforcement, and the fix for "reserve the allowance before AI generation starts":
@@ -82,12 +88,24 @@ export async function reserveAuditSlot(user: AppUser, profileKey: string, conten
   const db = getDb();
   const leaseToken = randomUUID();
   const auditId = await db.transaction(async tx => {
+    let usedBonusCredit = false;
     if (user.role !== "admin") {
+      // Holding this per-user advisory lock across both the "is the weekly slot free" check AND
+      // (when it isn't) the bonus-credit decrement is what makes the decrement itself race-safe —
+      // two concurrent requests from the same account can never both read the same bonusAuditCredits
+      // value and both spend it, the same guarantee this lock already gave the weekly-slot check.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.id}))`);
       const [recent] = await tx.select({ id: profileAudits.id }).from(profileAudits)
         .where(recentAllowanceCondition(user.id))
         .limit(1);
-      if (recent) throw new WeeklyLimitError();
+      if (recent) {
+        const [spent] = await tx.update(profiles)
+          .set({ bonusAuditCredits: sql`${profiles.bonusAuditCredits} - 1` })
+          .where(and(eq(profiles.id, user.id), sql`${profiles.bonusAuditCredits} > 0`))
+          .returning({ id: profiles.id });
+        if (!spent) throw new WeeklyLimitError();
+        usedBonusCredit = true;
+      }
     }
     const [inserted] = await tx.insert(profileAudits).values({
       userId: user.id,
@@ -98,6 +116,7 @@ export async function reserveAuditSlot(user: AppUser, profileKey: string, conten
       billable: true,
       status: "reserved",
       leaseToken,
+      usedBonusCredit,
     }).returning({ id: profileAudits.id });
     return inserted.id;
   });
@@ -166,6 +185,13 @@ export async function completeReservation(auditId: string, leaseToken: string, p
 // turns out to already be released.
 export async function releaseReservation(auditId: string, leaseToken: string) {
   const db = getDb();
-  await db.update(profileAudits).set({ status: "failed", billable: false, updatedAt: new Date() })
-    .where(and(eq(profileAudits.id, auditId), eq(profileAudits.leaseToken, leaseToken), eq(profileAudits.status, "reserved")));
+  const [row] = await db.update(profileAudits).set({ status: "failed", billable: false, updatedAt: new Date() })
+    .where(and(eq(profileAudits.id, auditId), eq(profileAudits.leaseToken, leaseToken), eq(profileAudits.status, "reserved")))
+    .returning({ userId: profileAudits.userId, usedBonusCredit: profileAudits.usedBonusCredit });
+  // A failed generation must never cost the account anything — including a bonus credit that was
+  // spent (instead of the weekly slot) to admit this reservation in the first place. This mirrors
+  // exactly why `billable` is flipped to false above for the weekly slot.
+  if (row?.usedBonusCredit) {
+    await db.update(profiles).set({ bonusAuditCredits: sql`${profiles.bonusAuditCredits} + 1` }).where(eq(profiles.id, row.userId));
+  }
 }

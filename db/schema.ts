@@ -28,6 +28,15 @@ export const profiles = pgTable("profiles", {
   // full access. Admin accounts get full access regardless of this value (see lib/entitlements.ts).
   plan: text("plan").notNull().default("free"), // "free" | "subscriber"
   planUpdatedAt: timestamp("plan_updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+  // Admin-configurable, one-off audit credits on top of the standard free weekly allowance — the
+  // "keep audit allowances configurable rather than inventing a paid plan" requirement. Consumed
+  // before the weekly-limit check in lib/audit-limit.ts; irrelevant for subscriber/admin accounts,
+  // which already bypass the weekly limit entirely.
+  bonusAuditCredits: integer("bonus_audit_credits").notNull().default(0),
+  // Whether this account opted out of promotional/marketing email. Service notifications (managed-
+  // client updates, audit-ready, admin service announcements) are never suppressed by this — only
+  // announcements sent with kind "promotional" respect it. Set by the account itself, never inferred.
+  marketingOptOut: boolean("marketing_opt_out").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => [index("idx_profiles_email").on(table.email)]).enableRLS();
@@ -109,6 +118,11 @@ export const profileAudits = pgTable("profile_audits", {
   // by the limit check itself, and eventually swept to "failed" by the delivery worker's reaper —
   // this is the "release failed reservations and recover abandoned jobs" requirement.
   status: text("status").notNull().default("completed"), // reserved | completed | failed
+  // True only when this reservation was admitted by spending one of the user's admin-granted
+  // bonusAuditCredits (see lib/audit-limit.ts) rather than the standard weekly free slot — set once,
+  // at reservation time, so releaseReservation() knows whether a failed generation must refund a
+  // bonus credit (it must never touch the weekly slot itself, which was never "spent" in that case).
+  usedBonusCredit: boolean("used_bonus_credit").notNull().default(false),
   // The fencing token for this reservation, minted once at reserveAuditSlot() and never reused.
   // completeReservation()/releaseReservation()/renewReservationLease() all guard their UPDATE with
   // `WHERE id = ? AND lease_token = ? AND status = 'reserved'` — so a request whose reservation was
@@ -229,4 +243,179 @@ export const deliveryJobs = pgTable("delivery_jobs", {
 }, (table) => [
   uniqueIndex("uq_delivery_jobs_audit_kind").on(table.auditId, table.kind),
   index("idx_delivery_jobs_claimable").on(table.status, table.nextAttemptAt),
+]).enableRLS();
+
+// ---------------------------------------------------------------------------------------------
+// Managed Client Portal — a permission dimension entirely separate from `profiles.plan` (audit
+// entitlement). A workspace is one client engagement (one or more Upwork profiles, one account
+// manager); membership in it is manual-admin-only, never granted by checkout, and never implies
+// anything about `profiles.plan` or vice versa — a person can be both a paying audit subscriber
+// and a managed client, or either alone, or neither. See lib/permissions.ts.
+// ---------------------------------------------------------------------------------------------
+
+export const clientWorkspaces = pgTable("client_workspaces", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  accountManagerEmail: text("account_manager_email").notNull().default(""),
+  serviceStartDate: timestamp("service_start_date", { withTimezone: true }),
+  objectives: text("objectives").notNull().default(""),
+  // "active" = at least intended to be visible; a member's own status (below) further gates
+  // whether a specific person can currently see it. "suspended"/"removed" hide the workspace for
+  // every member regardless of their individual status — the workspace-level kill switch.
+  status: text("status").notNull().default("active"), // "active" | "suspended" | "removed"
+  createdByEmail: text("created_by_email").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_client_workspaces_status").on(table.status)]).enableRLS();
+
+// Links a verified account id (never an email typed by hand at grant time) to a workspace. One
+// row per (workspace, user) — a user could in principle belong to more than one workspace.
+export const workspaceMembers = pgTable("workspace_members", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: uuid("workspace_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  status: text("status").notNull().default("active"), // "active" | "suspended" | "removed"
+  addedByEmail: text("added_by_email").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [
+  uniqueIndex("uq_workspace_members_workspace_user").on(table.workspaceId, table.userId),
+  index("idx_workspace_members_user").on(table.userId, table.status),
+]).enableRLS();
+
+// One or more Upwork profiles per workspace, each with its own reports/history/attachments —
+// "each profile must have its own data" requirement. A workspace with multiple profiles is what
+// drives the client portal's profile selector.
+export const workspaceProfiles = pgTable("workspace_profiles", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: uuid("workspace_id").notNull(),
+  name: text("name").notNull(),
+  upworkUrl: text("upwork_url").notNull().default(""),
+  goals: text("goals").notNull().default(""),
+  status: text("status").notNull().default("active"), // "active" | "archived"
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_workspace_profiles_workspace").on(table.workspaceId)]).enableRLS();
+
+export const weeklyReports = pgTable("weekly_reports", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceProfileId: uuid("workspace_profile_id").notNull(),
+  periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+  periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+  title: text("title").notNull().default(""),
+  workCompleted: text("work_completed").notNull().default(""),
+  nextActions: text("next_actions").notNull().default(""),
+  clientActionNeeded: text("client_action_needed").notNull().default(""),
+  // "draft" is never visible to the client; "preview" is admin/account-manager-only proofing;
+  // "published" is the only state the client-facing portal or download endpoint will ever serve.
+  status: text("status").notNull().default("draft"), // "draft" | "preview" | "published"
+  authorEmail: text("author_email").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+}, (table) => [
+  index("idx_weekly_reports_profile_period").on(table.workspaceProfileId, table.periodStart),
+  index("idx_weekly_reports_status").on(table.status),
+]).enableRLS();
+
+// One row per metric per report. `value` is nullable ON PURPOSE — missing data must render as
+// "Not provided", never as 0 (a real, meaningfully different value). `source` records where the
+// number came from, since nothing here is pulled from a live Upwork sync unless/until that is
+// actually built and verified.
+export const reportMetrics = pgTable("report_metrics", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  reportId: uuid("report_id").notNull(),
+  // "profile_views" | "invitations" | "proposals_sent" | "replies" | "interviews" | "hires" |
+  // "earnings" | "connects_spent"
+  metricKey: text("metric_key").notNull(),
+  value: real("value"), // null == "Not provided", never coerced to 0
+  source: text("source").notNull().default("admin_entered"), // "admin_entered" | "uploaded_evidence"
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [uniqueIndex("uq_report_metrics_report_key").on(table.reportId, table.metricKey)]).enableRLS();
+
+export const reportAttachments = pgTable("report_attachments", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  reportId: uuid("report_id").notNull(),
+  filename: text("filename").notNull(),
+  // Populated once the actual upload/storage path is built (Phase 5) — reusing the existing
+  // owner-Drive connection (lib/drive.ts) rather than standing up separate storage infra.
+  driveFileId: text("drive_file_id"),
+  uploadedByEmail: text("uploaded_by_email").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_report_attachments_report").on(table.reportId)]).enableRLS();
+
+// Client-visible updates and internal-only notes for a workspace, kept in ONE table with a
+// `visibility` flag rather than two tables, specifically so a bug can never leak an internal note
+// by querying the wrong table — every read site must filter on `visibility` explicitly, and the
+// client-facing endpoint only ever queries `visibility = 'client'`.
+export const clientUpdates = pgTable("client_updates", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  workspaceId: uuid("workspace_id").notNull(),
+  workspaceProfileId: uuid("workspace_profile_id"), // null = workspace-wide, not profile-specific
+  message: text("message").notNull(),
+  visibility: text("visibility").notNull(), // "client" | "internal"
+  authorEmail: text("author_email").notNull().default(""),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_client_updates_workspace_visibility").on(table.workspaceId, table.visibility, table.createdAt)]).enableRLS();
+
+// ---------------------------------------------------------------------------------------------
+// Notifications & admin broadcasts
+// ---------------------------------------------------------------------------------------------
+
+export const notifications = pgTable("notifications", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  // "managed_access_granted" | "weekly_report_published" | "audit_completed" |
+  // "client_action_needed" | "admin_announcement"
+  type: text("type").notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull().default(""),
+  linkUrl: text("link_url").notNull().default(""),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_notifications_user_created").on(table.userId, table.createdAt)]).enableRLS();
+
+export const announcements = pgTable("announcements", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  title: text("title").notNull(),
+  message: text("message").notNull(), // plain text; escaped/rendered into the template at send time
+  audience: text("audience").notNull(), // "everyone" | "audit_users" | "subscribers" | "managed_clients" | "selected"
+  channel: text("channel").notNull().default("in_app"), // "in_app" | "email" | "both"
+  // "promotional" respects profiles.marketingOptOut and any suppression list; "service" never does
+  // (access/report/audit notifications are not marketing). Kept separate from `type` on
+  // `notifications` because one announcement fans out into many per-user notification rows.
+  kind: text("kind").notNull().default("service"), // "service" | "promotional"
+  actionLabel: text("action_label").notNull().default(""),
+  actionUrl: text("action_url").notNull().default(""),
+  createdByEmail: text("created_by_email").notNull().default(""),
+  status: text("status").notNull().default("draft"), // "draft" | "sent"
+  recipientCount: integer("recipient_count").notNull().default(0),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+}, (table) => [index("idx_announcements_status_created").on(table.status, table.createdAt)]).enableRLS();
+
+// Only populated when audience = "selected" — the explicit recipient list chosen for that send.
+export const announcementTargets = pgTable("announcement_targets", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  announcementId: uuid("announcement_id").notNull(),
+  userId: uuid("user_id").notNull(),
+}, (table) => [uniqueIndex("uq_announcement_targets_announcement_user").on(table.announcementId, table.userId)]).enableRLS();
+
+// Per-recipient delivery record — this is what makes a retry idempotent (never double-deliver)
+// and what lets the admin panel show real queued/provider-accepted/delivered/failed status
+// instead of reporting "delivered" just because an API call returned 200. Mirrors the same
+// discipline `deliveryJobs`/`emailNotifications` already established for audit-ready emails.
+export const announcementRecipients = pgTable("announcement_recipients", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  announcementId: uuid("announcement_id").notNull(),
+  userId: uuid("user_id").notNull(),
+  inAppStatus: text("in_app_status").notNull().default("queued"), // "queued" | "delivered" | "failed"
+  emailStatus: text("email_status").notNull().default("skipped"), // "skipped" | "queued" | "provider_accepted" | "delivered" | "failed" | "suppressed"
+  emailProviderMessageId: text("email_provider_message_id"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [
+  uniqueIndex("uq_announcement_recipients_announcement_user").on(table.announcementId, table.userId),
+  index("idx_announcement_recipients_email_status").on(table.emailStatus),
 ]).enableRLS();
