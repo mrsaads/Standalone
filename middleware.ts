@@ -6,7 +6,7 @@ import { NextResponse, type NextRequest } from "next/server";
 // this replaces the old platform-header gate (chatgpt-auth.ts's requireChatGPTUser) at the edge,
 // so an unauthenticated visitor is redirected to /login before the workspace ever renders, rather
 // than relying solely on the API routes to reject them after the page has loaded.
-const publicPaths = ["/login", "/signup", "/reset-password", "/verify", "/auth/callback", "/api/auth/signup"];
+const publicPaths = ["/login", "/signup", "/reset-password", "/verify", "/auth/callback", "/auth/confirm", "/api/auth/signup"];
 function isPublicPath(pathname: string) {
   return publicPaths.some(p => pathname === p || pathname.startsWith(`${p}/`));
 }
