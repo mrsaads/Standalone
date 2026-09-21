@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -13,7 +12,6 @@ import { AuthShell, AuthField } from "@/app/auth/auth-shell";
 // itself. If someone lands here without a valid recovery session, updateUser simply fails and we
 // show that as an error rather than guessing at the session state ourselves.
 export default function ResetPasswordConfirmPage() {
-  const router = useRouter();
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -44,7 +42,10 @@ export default function ResetPasswordConfirmPage() {
       const { error: updateError } = await supabase.auth.updateUser({ password });
       if (updateError) throw new Error(updateError.message);
       setDone(true);
-      setTimeout(() => router.push("/login"), 1500);
+      // Hard navigation, not router.push(): the App Router's client-side navigation has been
+      // observed to silently no-op right after an auth cookie changes out from under it (see
+      // app/login/page.tsx) — a full navigation reliably lands on the real, current login page.
+      setTimeout(() => { window.location.href = "/login"; }, 1500);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The password could not be updated.");
     } finally {

@@ -1,14 +1,12 @@
 "use client";
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
 
 export default function LoginPage() {
-  const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -26,8 +24,11 @@ export default function LoginPage() {
         // surface that distinctly since the fix (check your email) differs from a wrong password.
         throw new Error(signInError.message);
       }
-      router.push("/");
-      router.refresh();
+      // A hard navigation, not router.push()+router.refresh(): the App Router's client-side
+      // navigation has been observed to silently no-op right after an auth cookie changes
+      // out from under it (the push resolves, the cookie is set, but the route never
+      // re-renders) — a full navigation always picks up the fresh session server-side.
+      window.location.href = "/";
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sign in failed.");
     } finally {

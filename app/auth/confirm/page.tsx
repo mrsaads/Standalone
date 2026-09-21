@@ -1,6 +1,6 @@
 "use client";
 import { useState, Suspense } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
@@ -25,7 +25,6 @@ import { AuthShell } from "@/app/auth/auth-shell";
 // for the reset-password template) instead of the default `{{ .ConfirmationURL }}`. That's a
 // dashboard-only change — nothing here takes effect until the templates point here.
 function ConfirmInner() {
-  const router = useRouter();
   const params = useSearchParams();
   const tokenHash = params.get("token_hash");
   const type = params.get("type") as EmailOtpType | null;
@@ -52,7 +51,10 @@ function ConfirmInner() {
       const supabase = createSupabaseBrowserClient();
       const { error: verifyError } = await supabase.auth.verifyOtp({ token_hash: tokenHash!, type: type! });
       if (verifyError) throw new Error(verifyError.message);
-      router.replace(type === "recovery" ? "/reset-password/confirm" : next);
+      // Hard navigation, not router.replace(): the App Router's client-side navigation has
+      // been observed to silently no-op right after an auth cookie changes out from under it
+      // (see app/login/page.tsx) — a full navigation reliably picks up the fresh session.
+      window.location.href = type === "recovery" ? "/reset-password/confirm" : next;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "This link is invalid or has expired.");
       setState("error");
