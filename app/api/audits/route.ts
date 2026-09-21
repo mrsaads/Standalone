@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { eq } from "drizzle-orm";
 import { auditJsonSchema, auditReportSchema, auditSectionIds, criterionRegistry, type AuditReport } from "@/lib/audit-report";
@@ -134,10 +135,22 @@ function extractOpenAIText(result: unknown) {
   return "";
 }
 
+// Carries structured, safe-to-log diagnostics (never the profile text, never the API key) so a
+// failure can actually be told apart from another one in the logs — the old code only ever logged
+// error.name, which is "Error" for literally every failure mode and made every incident
+// indistinguishable from every other one. See the catch block in POST() for where this surfaces.
+class AiProviderError extends Error {
+  constructor(message: string, public diagnostics: { provider: string; model: string; status?: number; errorType?: string; requestId?: string | null }) {
+    super(message);
+    this.name = "AiProviderError";
+  }
+}
+
 async function runOpenAI(prompt: string) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("AI_NOT_CONFIGURED");
   const model = process.env.AI_MODEL || "gpt-5.2";
+  const requestId = randomUUID();
   const body: Record<string, unknown> = {
     model,
     instructions,
@@ -148,38 +161,79 @@ async function runOpenAI(prompt: string) {
     text: { format: { type: "json_schema", name: "improvexus_upwork_audit", strict: true, schema: auditJsonSchema } },
   };
   if (process.env.AI_WEB_RESEARCH !== "false") body.tools = [{ type: "web_search" }];
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    signal: AbortSignal.timeout(150000),
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const result = await response.json() as { error?: { message?: string } };
-  if (!response.ok) throw new Error(result.error?.message || "The OpenAI request failed.");
+  let response: Response;
+  try {
+    response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: AbortSignal.timeout(150000),
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (networkError) {
+    const isTimeout = networkError instanceof Error && networkError.name === "TimeoutError";
+    throw new AiProviderError(isTimeout ? "The OpenAI request timed out." : "Could not reach the OpenAI API.", {
+      provider: "openai", model, requestId, errorType: isTimeout ? "client_timeout" : "network_error",
+    });
+  }
+  const openaiRequestId = response.headers.get("x-request-id");
+  let result: { error?: { message?: string; type?: string } };
+  try { result = await response.json(); }
+  catch { throw new AiProviderError("OpenAI returned a response that was not valid JSON.", { provider: "openai", model, status: response.status, requestId: openaiRequestId, errorType: "invalid_response_body" }); }
+  if (!response.ok) {
+    throw new AiProviderError(result.error?.message || `The OpenAI request failed with status ${response.status}.`, {
+      provider: "openai", model, status: response.status, requestId: openaiRequestId, errorType: result.error?.type,
+    });
+  }
   const text = extractOpenAIText(result);
-  if (!text) throw new Error("The AI response did not contain an audit.");
+  if (!text) throw new AiProviderError("The AI response did not contain an audit.", { provider: "openai", model, status: response.status, requestId: openaiRequestId, errorType: "empty_response" });
   return { value: parseJsonText(text), provider: `OpenAI · ${model}` };
 }
 
 async function runAnthropic(prompt: string) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("AI_NOT_CONFIGURED");
-  const model = process.env.AI_MODEL || "claude-sonnet-4-6";
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    signal: AbortSignal.timeout(150000),
-    headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model,
-      max_tokens: 12000,
-      system: `${instructions}\nThe JSON must match this schema: ${JSON.stringify(auditJsonSchema)}`,
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  const result = await response.json() as { content?: Array<{ type?: string; text?: string }>; error?: { message?: string } };
-  if (!response.ok) throw new Error(result.error?.message || "The Anthropic request failed.");
+  // claude-sonnet-5 is the current default; AI_MODEL still overrides it for rollback or testing a
+  // different snapshot without a code change. output_config.effort is the documented Messages API
+  // field for reasoning effort on Sonnet 4.6/5 (and other newer models) — see
+  // https://platform.claude.com/docs/en/build-with-claude/effort. "high" is the API's own default
+  // if this is ever omitted; "medium" is the level actually requested for this app.
+  const model = process.env.AI_MODEL || "claude-sonnet-5";
+  const effort = process.env.AI_REASONING_EFFORT || "medium";
+  const requestId = randomUUID();
+  let response: Response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: AbortSignal.timeout(150000),
+      headers: { "x-api-key": apiKey, "anthropic-version": "2023-06-01", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        max_tokens: 12000,
+        system: `${instructions}\nThe JSON must match this schema: ${JSON.stringify(auditJsonSchema)}`,
+        messages: [{ role: "user", content: prompt }],
+        output_config: { effort },
+      }),
+    });
+  } catch (networkError) {
+    // fetch() itself threw: DNS failure, connection reset, or (most likely at 150s) our own
+    // AbortSignal timing out a request Anthropic never finished. Distinguish "we never got a
+    // response" from "we got an error response" — very different fixes.
+    const isTimeout = networkError instanceof Error && networkError.name === "TimeoutError";
+    throw new AiProviderError(isTimeout ? "The Anthropic request timed out." : "Could not reach the Anthropic API.", {
+      provider: "anthropic", model, requestId, errorType: isTimeout ? "client_timeout" : "network_error",
+    });
+  }
+  const anthropicRequestId = response.headers.get("request-id");
+  let result: { content?: Array<{ type?: string; text?: string }>; error?: { type?: string; message?: string } };
+  try { result = await response.json(); }
+  catch { throw new AiProviderError("Anthropic returned a response that was not valid JSON.", { provider: "anthropic", model, status: response.status, requestId: anthropicRequestId, errorType: "invalid_response_body" }); }
+  if (!response.ok) {
+    throw new AiProviderError(result.error?.message || `The Anthropic request failed with status ${response.status}.`, {
+      provider: "anthropic", model, status: response.status, requestId: anthropicRequestId, errorType: result.error?.type,
+    });
+  }
   const text = result.content?.find(part => part.type === "text")?.text ?? "";
-  if (!text) throw new Error("The AI response did not contain an audit.");
+  if (!text) throw new AiProviderError("The AI response did not contain an audit.", { provider: "anthropic", model, status: response.status, requestId: anthropicRequestId, errorType: "empty_response" });
   return { value: parseJsonText(text), provider: `Anthropic · ${model}` };
 }
 
@@ -257,7 +311,9 @@ export async function POST(request: Request) {
   }
   void touchProfile(user.id);
 
-  const provider = (process.env.AI_PROVIDER || "openai").toLowerCase();
+  // Anthropic (Claude Sonnet) is the default provider per the current product configuration; set
+  // AI_PROVIDER=openai in the environment to roll back without a code change.
+  const provider = (process.env.AI_PROVIDER || "anthropic").toLowerCase();
   const runProvider = (prompt: string) => provider === "anthropic" ? runAnthropic(prompt) : runOpenAI(prompt);
 
   // Invalid AI output must never reach the client as a report: an unparsable or schema-invalid
@@ -338,7 +394,17 @@ export async function POST(request: Request) {
     await releaseReservation(auditId, leaseToken).catch(() => {});
     const message = error instanceof Error ? error.message : "Unknown AI error";
     if (message === "AI_NOT_CONFIGURED") return json({ error: "The AI connection is ready but no API key has been added yet.", code: "AI_NOT_CONFIGURED" }, 503);
-    console.error("AI audit generation failed", error instanceof Error ? error.name : "UnknownError");
+    // Structured diagnostics when the failure came from a provider call (the common case): provider,
+    // model, HTTP status, the provider's own machine-readable error type, and its request id — safe
+    // to log (no prompt text, no profile content, no API key) and specific enough to actually tell
+    // apart auth failures, missing model access, rate limits, timeouts, and truncated/invalid output
+    // from each other. Anything else (e.g. an unexpected bug elsewhere in this block) still logs its
+    // name and message so it isn't silently swallowed either.
+    if (error instanceof AiProviderError) {
+      console.error("AI audit generation failed", JSON.stringify({ ...error.diagnostics, message: error.message }));
+    } else {
+      console.error("AI audit generation failed", error instanceof Error ? `${error.name}: ${error.message}` : "UnknownError");
+    }
     return json({ error: "The AI could not complete this audit. Check the provider settings or try again." }, 502);
   }
 }
