@@ -9,7 +9,20 @@
       flatten its 3D children regardless of the property — use `position: absolute` instead.
    2) `filter` (also `clip-path`/`mask`/`contain`/`isolation`) on a `preserve-3d` element forces
       that element's OWN preserve-3d to compute as `flat`, per spec. The contact-shadow filter
-      below lives on .ix-cube-stage, which has no 3D children of its own, never on .ix-cube-rig. */
+      below lives on .ix-cube-stage, which has no 3D children of its own, never on .ix-cube-rig.
+
+   Per-tile "shatter and reassemble" loop, per the user's reference stills: each of the 9 cells on
+   every face independently drifts outward (translate3d, its own depth pop + lateral jitter + a
+   slight rotate) and settles back, on a long period, layered UNDER the whole-rig tumble above.
+   This is a CSS approximation of a WebGL/Spline reference — genuinely NOT pixel-identical to a
+   physically-lit render (that ceiling is real, see the chat writeup), just stylistically close:
+   individual tiles visibly separate with soft shadows, and roughly a third carry a speckled
+   (dotted) material via a per-cell ::after overlay so the faces read as mixed glossy/matte like
+   the reference, not one uniform surface. `box-shadow` is used for the "lifted" shadow instead of
+   `filter: drop-shadow` specifically to avoid bug (2) above — `.ix-cube-cell` has no 3D children of
+   its own, so a `filter` here would be safe too, but box-shadow is cheaper and there's no reason to
+   risk it. Same period (9s) for every cell so the loop stays exactly seamless; only the per-cell
+   `animation-delay` differs, which just phase-shifts where each tile is in that same cycle. */
 
 .ix-cube-stage {
   position: absolute;
@@ -49,7 +62,48 @@
   border-radius: 4px;
 }
 .ix-cube-cell {
+  position: relative;
   border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  background: inherit; /* pick up the parent face's own gradient, so a detached tile still reads
+                           as a solid opaque surface rather than a see-through hole */
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  transform: translate3d(0, 0, 0) rotate(0deg);
+  animation: ix-cube-shatter 9s ease-in-out infinite;
+}
+
+/* Per-cell scatter target + stagger, shared across every face by grid position (1st..9th child).
+   Values are hand-placed, not physically simulated: some pop further/closer, some drift left/
+   right/up/down, all rotate a few degrees, so no two tiles move identically at once. */
+.ix-cube-cell:nth-child(1) { --sx: -13px; --sy: -9px; --sz: 26px; --sr: -6deg; animation-delay: 0s; }
+.ix-cube-cell:nth-child(2) { --sx: 2px; --sy: -15px; --sz: 38px; --sr: 3deg; animation-delay: 0.4s; }
+.ix-cube-cell:nth-child(3) { --sx: 15px; --sy: -7px; --sz: 17px; --sr: 7deg; animation-delay: 0.8s; }
+.ix-cube-cell:nth-child(4) { --sx: -17px; --sy: 4px; --sz: 32px; --sr: -4deg; animation-delay: 1.2s; }
+.ix-cube-cell:nth-child(5) { --sx: 0px; --sy: 0px; --sz: 50px; --sr: 2deg; animation-delay: 0.2s; }
+.ix-cube-cell:nth-child(6) { --sx: 17px; --sy: 2px; --sz: 28px; --sr: -3deg; animation-delay: 0.6s; }
+.ix-cube-cell:nth-child(7) { --sx: -11px; --sy: 13px; --sz: 21px; --sr: 5deg; animation-delay: 1.0s; }
+.ix-cube-cell:nth-child(8) { --sx: 2px; --sy: 17px; --sz: 41px; --sr: -6deg; animation-delay: 0.3s; }
+.ix-cube-cell:nth-child(9) { --sx: 13px; --sy: 9px; --sz: 15px; --sr: 4deg; animation-delay: 0.7s; }
+
+/* Speckled/matte tiles vs the smooth glossy default, matching the mixed materials in the
+   reference — three of the nine positions, so every face has some of each. */
+.ix-cube-cell:nth-child(2)::after,
+.ix-cube-cell:nth-child(5)::after,
+.ix-cube-cell:nth-child(7)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.4) 1px, transparent 1.5px);
+  background-size: 5px 5px;
+  opacity: 0.3;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+}
+
+@keyframes ix-cube-shatter {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(0deg); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06); }
+  50% { transform: translate3d(var(--sx), var(--sy), var(--sz)) rotate(var(--sr)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 10px 20px rgba(0, 0, 0, 0.45); }
 }
 
 .ix-cube-face-front { transform: translateZ(var(--ix-cube-half)); background: linear-gradient(155deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.05)); }
@@ -74,6 +128,10 @@
   .ix-cube-rig {
     animation: none !important;
     transform: rotateX(-20deg) rotateY(25deg) rotateZ(-6deg) !important;
+  }
+  .ix-cube-cell {
+    animation: none !important;
+    transform: translate3d(0, 0, 0) rotate(0deg) !important;
   }
 }
 
