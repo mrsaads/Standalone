@@ -10,6 +10,9 @@ const signupSchema = z.object({
   upworkLink: z.string().trim().max(300).optional().default(""),
   email: z.string().trim().email().max(254),
   password: z.string().min(8).max(200),
+  // Which workspace card the visitor picked before signing up, if any (see lib/destination.ts).
+  // Purely a routing hint stored on the new profile row — never a grant of client-portal access.
+  destination: z.enum(["audit", "client_portal"]).optional(),
 });
 
 const responseHeaders = { "Cache-Control": "no-store" };
@@ -28,7 +31,7 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return json({ error: "The signup request could not be read." }, 400); }
   const parsed = signupSchema.safeParse(body);
   if (!parsed.success) return json({ error: parsed.error.issues[0]?.message || "Check your signup details." }, 400);
-  const { fullName, mobile, upworkLink, email, password } = parsed.data;
+  const { fullName, mobile, upworkLink, email, password, destination } = parsed.data;
 
   const origin = resolveAppOrigin(request);
   const supabase = await createSupabaseServerClient();
@@ -56,6 +59,7 @@ export async function POST(request: Request) {
       mobile,
       upworkLink,
       role: isAdminEmail(email) ? "admin" : "base",
+      preferredDestination: destination ?? "",
     }).onConflictDoUpdate({
       target: profiles.id,
       set: { fullName, mobile, upworkLink },

@@ -37,6 +37,11 @@ export const profiles = pgTable("profiles", {
   // client updates, audit-ready, admin service announcements) are never suppressed by this — only
   // announcements sent with kind "promotional" respect it. Set by the account itself, never inferred.
   marketingOptOut: boolean("marketing_opt_out").notNull().default(false),
+  // Per-user default landing destination after a plain "Log in"/"Sign up" (no workspace card
+  // selected) — set from whichever card the visitor picked at signup. Purely a routing hint: it
+  // never grants client-portal access on its own (see workspaceMembers for the actual grant), and
+  // a card click at login time always overrides it for that one visit. See lib/destination.ts.
+  preferredDestination: text("preferred_destination").notNull().default(""), // "" | "audit" | "client_portal"
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => [index("idx_profiles_email").on(table.email)]).enableRLS();
@@ -163,6 +168,26 @@ export const enquiries = pgTable("enquiries", {
   status: text("status").notNull().default("new"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => [index("idx_enquiries_email_created").on(table.email, table.createdAt)]).enableRLS();
+
+// Lightweight marketing leads: the public landing page's general enquiry CTA, plus a signed-in
+// but unassigned user's "request managed-client access" submission from /client-portal.
+// Deliberately separate from `enquiries` above (tied to the in-workspace profile self-assessment
+// quiz, which requires a scored answer set a landing-page visitor never has). Creating a lead
+// never creates a workspaceMembers row — only an admin doing that manually does.
+export const leads = pgTable("leads", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  profileLink: text("profile_link").notNull().default(""),
+  goals: text("goals").notNull().default(""),
+  source: text("source").notNull(), // "landing_audit" | "landing_client_portal" | "landing_general" | "client_portal_access_request"
+  userId: uuid("user_id"), // set only for a signed-in user's access-request submission
+  status: text("status").notNull().default("new"), // "new" | "reviewed" | "actioned"
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [
+  index("idx_leads_email_created").on(table.email, table.createdAt),
+  index("idx_leads_status").on(table.status),
+]).enableRLS();
 
 // One row: the single owner Google Drive connection made from the admin panel. Not per-user —
 // customers never connect their own Drive. Tokens are stored encrypted (see lib/crypto.ts);

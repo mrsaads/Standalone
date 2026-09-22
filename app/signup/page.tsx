@@ -1,11 +1,18 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
+import { isDestination } from "@/lib/destination-shared";
 
-export default function SignupPage() {
+function SignupInner() {
+  const params = useSearchParams();
+  const rawDestination = params.get("destination");
+  const destination = isDestination(rawDestination) ? rawDestination : undefined;
+  const loginHref = destination ? `/login?destination=${destination}` : "/login";
+
   const [fullName, setFullName] = useState("");
   const [mobile, setMobile] = useState("");
   const [upworkLink, setUpworkLink] = useState("");
@@ -23,7 +30,7 @@ export default function SignupPage() {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, mobile, upworkLink, email, password }),
+        body: JSON.stringify({ fullName, mobile, upworkLink, email, password, destination }),
       });
       const result = await response.json() as { error?: string; needsVerification?: boolean };
       if (!response.ok) throw new Error(result.error || "Signup could not be completed.");
@@ -49,7 +56,7 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Create your Improvexus account"
-      subtitle={<>Already have an account? <Link href="/login">Sign in</Link>.</>}
+      subtitle={<>Already have an account? <Link href={loginHref}>Sign in</Link>.</>}
     >
       <form onSubmit={submit}>
         <AuthField label="Full name" htmlFor="ix-name">
@@ -73,5 +80,13 @@ export default function SignupPage() {
         </Button>
       </form>
     </AuthShell>
+  );
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<AuthShell title="Create your Improvexus account">{null}</AuthShell>}>
+      <SignupInner />
+    </Suspense>
   );
 }

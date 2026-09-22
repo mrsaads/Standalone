@@ -149,7 +149,7 @@ async function processJob(job: DeliveryJobRow) {
       auditId: job.auditId,
       userEmail: audit.userEmail,
       profileName: audit.profileName,
-      reportUrl: `${appOrigin}/?openAudit=${job.auditId}`,
+      reportUrl: `${appOrigin}/audit?openAudit=${job.auditId}`,
     });
     if (!result.sent) throw new Error(result.error || "Email send failed.");
     return;

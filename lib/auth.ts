@@ -13,6 +13,8 @@ export type AppUser = {
   // Manually set by an admin from the admin panel (see lib/entitlements.ts) — irrelevant for an
   // admin account, which always gets full access regardless of this value.
   plan: "free" | "subscriber";
+  // Routing hint only — see lib/destination.ts. "" means no stored preference yet.
+  preferredDestination: "" | "audit" | "client_portal";
 };
 
 function isAdminEmail(email: string): boolean {
@@ -41,6 +43,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     upworkLink: profile?.upworkLink || "",
     role: admin ? "admin" : "base",
     plan: profile?.plan === "subscriber" ? "subscriber" : "free",
+    preferredDestination: profile?.preferredDestination === "audit" || profile?.preferredDestination === "client_portal" ? profile.preferredDestination : "",
   };
 }
 

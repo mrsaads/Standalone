@@ -133,7 +133,7 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
           <h1 className="text-2xl font-semibold">Improvexus admin</h1>
           <p className="text-sm text-neutral-600">Signed in as {adminEmail} · unlimited audits</p>
         </div>
-        <a href="/" className="text-sm underline">Back to workspace</a>
+        <a href="/audit" className="text-sm underline">Back to workspace</a>
       </div>
 
       {driveParam && driveMessages[driveParam] && (
