@@ -1,25 +1,15 @@
 /* Decorative cube for the auth pages. Pure CSS 3D (no images, no canvas/WebGL, nothing to
    preload) — paints in the same frame as the rest of the page, so it never delays or blocks the
-   login form being usable. See auth-cube.tsx for the structure/rationale, including why this is a
-   single rigid tumbling cube rather than independently-scrambling layers.
+   login form being usable. See auth-cube.tsx for the structure/rationale: a real 6-faced solid
+   cube (not a thin slab), each face a plain 2D 3x3 CSS grid, so it reads as solid from every angle
+   in the tumble instead of ever foreshortening down to a flat card.
 
-   Layout note: every 3D-transformed level here is positioned with plain `position: absolute` +
-   fixed offsets, deliberately NOT `display: flex`. Chromium (and other engines) can silently
-   flatten `transform-style: preserve-3d` children of a flex (or grid) container regardless of the
-   property being set — every face after the first ends up invisible even though its computed
-   transform and getBoundingClientRect() both look correct. Absolute positioning is the technique
-   every reliable CSS-cube reference implementation uses for exactly this reason.
-
-   Second gotcha worth recording: `filter` (also `clip-path`, `mask`, `contain`, `isolation`) on an
-   element that also has `transform-style: preserve-3d` forces that element's OWN preserve-3d to
-   compute as `flat`, per spec — silently, no warning. The contact-shadow filter below lives on
-   .ix-cube-stage (which has no 3D children of its own to flatten), never on .ix-cube-rig. */
-
-:root {
-  --ix-cubie-size: 52px;
-  --ix-cubie-gap: 3px;
-  --ix-cubie-step: calc(var(--ix-cubie-size) + var(--ix-cubie-gap));
-}
+   Two real bugs this went through earlier, recorded here so nobody reintroduces them:
+   1) `display: flex` on a `transform-style: preserve-3d` element can make browsers silently
+      flatten its 3D children regardless of the property — use `position: absolute` instead.
+   2) `filter` (also `clip-path`/`mask`/`contain`/`isolation`) on a `preserve-3d` element forces
+      that element's OWN preserve-3d to compute as `flat`, per spec. The contact-shadow filter
+      below lives on .ix-cube-stage, which has no 3D children of its own, never on .ix-cube-rig. */
 
 .ix-cube-stage {
   position: absolute;
@@ -36,68 +26,50 @@
   filter: drop-shadow(0 26px 50px rgba(0, 0, 0, 0.55));
 }
 
-/* One rigid body: everything under here shares one 3D space and rotates together as a single
-   solved cube — never taken apart. */
 .ix-cube-rig {
+  --ix-cube-size: 172px;
+  --ix-cube-half: calc(var(--ix-cube-size) / 2);
   position: relative;
-  width: calc(var(--ix-cubie-step) * 3);
-  height: calc(var(--ix-cubie-step) * 3);
+  width: var(--ix-cube-size);
+  height: var(--ix-cube-size);
   transform-style: preserve-3d;
   animation: ix-cube-tumble 26s linear infinite;
 }
 
-.ix-cube-row {
-  position: absolute;
-  left: 0;
-  top: calc(var(--cubie-row) * var(--ix-cubie-step));
-  width: 100%;
-  height: var(--ix-cubie-size);
-  transform-style: preserve-3d;
-}
-
-.ix-cubie {
-  position: absolute;
-  top: 0;
-  left: calc(var(--cubie-col) * var(--ix-cubie-step));
-  width: var(--ix-cubie-size);
-  height: var(--ix-cubie-size);
-  transform-style: preserve-3d;
-}
-
-.ix-cubie-face {
+/* One real face of a real cube — full size, positioned by rotating into place then pushing out to
+   the surface (translateZ by half the cube's own size). Never a smaller "tile"; this is what
+   guarantees the cube always has genuine volume instead of ever going paper-thin. */
+.ix-cube-face {
   position: absolute;
   inset: 0;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
   backface-visibility: hidden;
+  border-radius: 4px;
 }
-.ix-cubie-front {
-  transform: translateZ(calc(var(--ix-cubie-size) / 2));
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.04) 65%);
-  box-shadow: inset 0 0 16px rgba(255, 255, 255, 0.04);
-}
-/* Top and side faces carry most of the "this is a 3D object" read at this size — a plausible
-   single overhead light source: light top, mid front, dark side. */
-.ix-cubie-top {
-  transform: rotateX(-90deg) translateZ(calc(var(--ix-cubie-size) / 2));
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0.22));
-}
-.ix-cubie-side {
-  transform: rotateY(-90deg) translateZ(calc(var(--ix-cubie-size) / 2));
-  background: linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.55));
+.ix-cube-cell {
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
+.ix-cube-face-front { transform: translateZ(var(--ix-cube-half)); background: linear-gradient(155deg, rgba(255, 255, 255, 0.26), rgba(255, 255, 255, 0.05)); }
+.ix-cube-face-back { transform: rotateY(180deg) translateZ(var(--ix-cube-half)); background: linear-gradient(155deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.02)); }
+.ix-cube-face-right { transform: rotateY(90deg) translateZ(var(--ix-cube-half)); background: linear-gradient(155deg, rgba(255, 255, 255, 0.14), rgba(0, 0, 0, 0.3)); }
+.ix-cube-face-left { transform: rotateY(-90deg) translateZ(var(--ix-cube-half)); background: linear-gradient(155deg, rgba(255, 255, 255, 0.1), rgba(0, 0, 0, 0.45)); }
+.ix-cube-face-top { transform: rotateX(-90deg) translateZ(var(--ix-cube-half)); background: linear-gradient(155deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.24)); }
+.ix-cube-face-bottom { transform: rotateX(90deg) translateZ(var(--ix-cube-half)); background: linear-gradient(155deg, rgba(255, 255, 255, 0.06), rgba(0, 0, 0, 0.55)); }
+
 /* Each axis completes a different whole number of turns over the same 26s duration (X: 2, Y: 3,
-   Z: 1) — that's what makes the tumble read as a real object turning in space rather than a flat
-   spin, while every axis still lands on an exact multiple of 360deg at 0%/100%, so the loop is
-   perfectly seamless with no visible seam or jump. The cube is never taken apart at any point. */
+   Z: 1) — reads as a real object tumbling in space rather than a flat spin, while every axis still
+   lands on an exact multiple of 360deg at 0%/100%, so the loop is perfectly seamless. The cube is
+   a single rigid body at every instant — it is never taken apart. */
 @keyframes ix-cube-tumble {
   0% { transform: rotateX(-20deg) rotateY(25deg) rotateZ(-6deg); }
   100% { transform: rotateX(700deg) rotateY(1105deg) rotateZ(354deg); }
 }
 
 /* Reduced motion / lightweight fallback: freeze at the same angled, fully-solved starting pose —
-   still recognizably a cube, just a still one, not a blank box. */
+   still recognizably a solid cube, just a still one, not a blank box. */
 @media (prefers-reduced-motion: reduce) {
   .ix-cube-rig {
     animation: none !important;
