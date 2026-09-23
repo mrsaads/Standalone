@@ -23,7 +23,7 @@
 .ix-landing a { color: inherit; }
 /* .ix-l-btn-solid must win over the ".ix-landing a" reset above even on an <a> (Next Link renders
    one): "a.classA" (element+class) beats ".classA" alone on specificity regardless of source
-   order, which was silently ghosting every solid-pill CTA's dark text onto its own light
+   order, which was silently ghosting every on it solid-pill CTA's dark text onto its own light
    background — exactly the kind of thing that looks fine in the DOM and unreadable on screen. */
 .ix-landing a.ix-l-btn-solid, .ix-landing .ix-l-btn-solid { color: #0b0b0d !important; }
 
