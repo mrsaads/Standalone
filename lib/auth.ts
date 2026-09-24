@@ -3,18 +3,25 @@ import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
+import type { AuditEntitlement } from "./entitlements";
+
 export type AppUser = {
   id: string; // Supabase auth.users.id
   email: string;
   fullName: string;
   mobile: string;
   upworkLink: string;
+  // AXIS 1 — account role.
   role: "base" | "admin";
-  // Manually set by an admin from the admin panel (see lib/entitlements.ts) — irrelevant for an
-  // admin account, which always gets full access regardless of this value.
-  plan: "free" | "subscriber";
-  // Routing hint only — see lib/destination.ts. "" means no stored preference yet.
-  preferredDestination: "" | "audit" | "client_portal";
+  // AXIS 2 — audit entitlement. Manually set by an admin from the admin panel (see
+  // lib/entitlements.ts) — irrelevant for an admin account, which always gets full audit access
+  // regardless of this value. Deliberately says nothing about managed-client access (AXIS 3),
+  // which is not carried on AppUser at all: it is per-workspace, so it is resolved per request by
+  // lib/workspace-access.ts rather than being a property of the user.
+  auditEntitlement: AuditEntitlement;
+  auditCredits: number;
+  auditCreditsUsed: number;
+  marketingOptIn: boolean;
 };
 
 function isAdminEmail(email: string): boolean {
@@ -35,6 +42,7 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
 
   const admin = isAdminEmail(user.email) || profile?.role === "admin";
+  const stored = profile?.auditEntitlement;
   return {
     id: user.id,
     email: user.email,
@@ -42,8 +50,12 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     mobile: profile?.mobile || "",
     upworkLink: profile?.upworkLink || "",
     role: admin ? "admin" : "base",
-    plan: profile?.plan === "subscriber" ? "subscriber" : "free",
-    preferredDestination: profile?.preferredDestination === "audit" || profile?.preferredDestination === "client_portal" ? profile.preferredDestination : "",
+    // Anything unrecognized falls back to the least-privileged value rather than being trusted —
+    // a typo or a future value this build doesn't know about must never read as more access.
+    auditEntitlement: stored === "subscribed" || stored === "admin_granted" ? stored : "free",
+    auditCredits: profile?.auditCredits ?? 0,
+    auditCreditsUsed: profile?.auditCreditsUsed ?? 0,
+    marketingOptIn: profile?.marketingOptIn ?? true,
   };
 }
 

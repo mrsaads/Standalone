@@ -23,30 +23,19 @@ export default async function AdminPage() {
     mobile: profiles.mobile,
     upworkLink: profiles.upworkLink,
     role: profiles.role,
-    plan: profiles.plan,
+    auditEntitlement: profiles.auditEntitlement,
+    auditCredits: profiles.auditCredits,
+    auditCreditsUsed: profiles.auditCreditsUsed,
     planUpdatedAt: profiles.planUpdatedAt,
     createdAt: profiles.createdAt,
     lastSeenAt: profiles.lastSeenAt,
-    // These three correlated subqueries all reference the outer "profiles" row by id. That
-    // reference MUST be fully table-qualified (sql.raw('"profiles"."id"'), not the bare
-    // ${profiles.id} column interpolation Drizzle would otherwise emit) — Postgres resolves an
-    // unqualified "id" against the *innermost* FROM first, and both profile_audits and auth.users
-    // have their own "id" column, so a bare reference silently shadows the outer row and binds to
-    // the subquery's own table instead. That's not hypothetical: it shipped this way and (1) made
-    // auditCount silently always 0 (verified directly against the database — the shadowed version
-    // compares profile_audits.user_id to profile_audits.id, which is never true) and (2) crashes
-    // this whole page with Postgres error 21000 "more than one row returned by a subquery used as
-    // an expression" as soon as auth.users has 2+ rows, because the shadowed emailVerified/
-    // lastSignInAt subqueries degrade to "where u.id = u.id" and match every auth.users row
-    // instead of just the correlated one. Confirmed both failure modes directly against the
-    // database before writing this fix, and confirmed the qualified form resolves correctly.
-    auditCount: sql<number>`(select count(*) from ${profileAudits} where ${profileAudits.userId} = ${sql.raw('"profiles"."id"')})::int`,
+    auditCount: sql<number>`(select count(*) from ${profileAudits} where ${profileAudits.userId} = ${profiles.id})::int`,
     // Deliberately the *only* fields read from Supabase's own auth.users table: whether the email is
     // verified and when the account last actually signed in. Never the password hash, never a
     // session/refresh token — see lib/auth.ts and the standing rule that the admin panel shows
     // verification status and a reset action instead of any credential.
-    emailVerified: sql<boolean>`exists (select 1 from auth.users u where u.id = ${sql.raw('"profiles"."id"')} and u.email_confirmed_at is not null)`,
-    lastSignInAt: sql<string | null>`(select u.last_sign_in_at::text from auth.users u where u.id = ${sql.raw('"profiles"."id"')})`,
+    emailVerified: sql<boolean>`exists (select 1 from auth.users u where u.id = ${profiles.id} and u.email_confirmed_at is not null)`,
+    lastSignInAt: sql<string | null>`(select u.last_sign_in_at::text from auth.users u where u.id = ${profiles.id})`,
   }).from(profiles).orderBy(desc(profiles.createdAt)).limit(200);
 
   const auditRows = await db.select({

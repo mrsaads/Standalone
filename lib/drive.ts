@@ -230,3 +230,40 @@ export async function fileAuditToDrive(params: {
 function bufferToStream(buffer: Buffer) {
   return Readable.from(buffer);
 }
+
+// Streams one Drive file back to the caller, for the managed-client portal's attachment download
+// (app/api/portal/attachments/[id]/route.ts). Authorization is NOT done here — it has already
+// happened, in lib/workspace-access.ts, before this is called; this function only knows how to
+// fetch bytes.
+//
+// Returns a discriminated result rather than throwing, so the route can tell "Drive is not set up
+// on this deployment" (a configuration problem the user should be told about plainly) apart from
+// "that file is gone" (a data problem), and never reports one as the other.
+export async function streamDriveFile(fileId: string): Promise<
+  | { ok: true; body: ReadableStream<Uint8Array> }
+  | { ok: false; reason: "not_configured" | "unavailable" }
+> {
+  let client: Awaited<ReturnType<typeof driveClient>>;
+  try {
+    client = await driveClient();
+  } catch {
+    // oauthClient() throws when GOOGLE_OAUTH_* is unset — i.e. Drive was never configured on this
+    // deployment at all, which is the current state of this project.
+    return { ok: false, reason: "not_configured" };
+  }
+  if (!client) return { ok: false, reason: "not_configured" };
+
+  try {
+    const response = await client.drive.files.get(
+      { fileId, alt: "media", supportsAllDrives: true },
+      { responseType: "stream" },
+    );
+    const nodeStream = response.data as unknown as NodeJS.ReadableStream;
+    // Node stream -> web ReadableStream, which is what a Response body wants. Streamed rather than
+    // buffered so a large attachment never has to sit in the server's memory in one piece.
+    const { Readable } = await import("node:stream");
+    return { ok: true, body: Readable.toWeb(nodeStream as never) as ReadableStream<Uint8Array> };
+  } catch {
+    return { ok: false, reason: "unavailable" };
+  }
+}

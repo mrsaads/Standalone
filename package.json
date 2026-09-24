@@ -16,7 +16,7 @@
     "test:local:reservation": "tsx scripts/local-tests/reservation-and-delivery.local-test.mts",
     "test:local:restart": "tsx scripts/local-tests/restart-recovery.local-test.mts",
     "test:local:drive-dedup": "tsx scripts/local-tests/drive-dedup.local-test.mts",
-    "test:local:auth-throttle": "tsx scripts/local-tests/auth-throttle.local-test.mts"
+    "test:local:isolation": "tsx scripts/local-tests/workspace-isolation.local-test.mts"
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",

@@ -397,7 +397,7 @@ export async function POST(request: Request) {
       audit: redactForEntitlement(report, entitlement),
       auditId,
       entitlement,
-      account: { role: user.role, plan: entitlement.plan, weeklyLimit: user.role === "admin" ? null : 1 },
+      account: { role: user.role, plan: entitlement.plan, weeklyLimit: user.role === "admin" ? null : 1, creditsRemaining: entitlement.creditsRemaining },
     });
   } catch (error) {
     if (error instanceof ReservationLostError) {

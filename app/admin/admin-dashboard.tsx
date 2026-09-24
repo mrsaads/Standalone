@@ -14,7 +14,7 @@ import { toast } from "sonner";
 
 type UserRow = {
   id: string; email: string; fullName: string; mobile: string; upworkLink: string; role: string;
-  plan: string; planUpdatedAt: string; createdAt: string; lastSeenAt: string; auditCount: number;
+  auditEntitlement: string; auditCredits: number; auditCreditsUsed: number; planUpdatedAt: string; createdAt: string; lastSeenAt: string; auditCount: number;
   emailVerified: boolean; lastSignInAt: string | null;
 };
 type AuditRow = { id: string; userEmail: string; profileName: string; score: number; passCount: number; weakCount: number; failCount: number; provider: string; billable: boolean; status: string; createdAt: string };
@@ -72,12 +72,12 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
   const [planUser, setPlanUser] = useState<UserRow | null>(null);
   const [planRecords, setPlanRecords] = useState<PaymentRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
-  const [planForm, setPlanForm] = useState({ plan: "free", amount: "", currency: "PKR", method: "bank_transfer", reference: "", note: "" });
+  const [planForm, setPlanForm] = useState({ auditEntitlement: "free", auditCredits: "0", amount: "", currency: "PKR", method: "bank_transfer", reference: "", note: "" });
   const [savingPlan, setSavingPlan] = useState(false);
 
   function openPlanDialog(row: UserRow) {
     setPlanUser(row);
-    setPlanForm({ plan: row.plan, amount: "", currency: "PKR", method: "bank_transfer", reference: "", note: "" });
+    setPlanForm({ auditEntitlement: row.auditEntitlement, auditCredits: String(row.auditCredits ?? 0), amount: "", currency: "PKR", method: "bank_transfer", reference: "", note: "" });
     setLoadingRecords(true);
     fetch(`/api/admin/users/${row.id}/plan`, { cache: "no-store" })
       .then(r => r.json()).then((value: { records?: PaymentRecord[] }) => setPlanRecords(value.records || []))
@@ -91,12 +91,12 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
     try {
       const response = await fetch(`/api/admin/users/${planUser.id}/plan`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planForm.plan, amount: Number(planForm.amount) || 0, currency: planForm.currency, method: planForm.method, reference: planForm.reference, note: planForm.note }),
+        body: JSON.stringify({ auditEntitlement: planForm.auditEntitlement, auditCredits: Number(planForm.auditCredits) || 0, amount: Number(planForm.amount) || 0, currency: planForm.currency, method: planForm.method, reference: planForm.reference, note: planForm.note }),
       });
       const result = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !result.ok) throw new Error(result.error || "The plan could not be saved.");
-      setUsers(rows => rows.map(u => u.id === planUser.id ? { ...u, plan: planForm.plan, planUpdatedAt: new Date().toISOString() } : u));
-      toast.success(`${planUser.email} is now on the ${planForm.plan} plan.`);
+      setUsers(rows => rows.map(u => u.id === planUser.id ? { ...u, auditEntitlement: planForm.auditEntitlement, auditCredits: Number(planForm.auditCredits) || 0, planUpdatedAt: new Date().toISOString() } : u));
+      toast.success(`${planUser.email}: audit entitlement set to ${planForm.auditEntitlement}, ${Number(planForm.auditCredits) || 0} credits.`);
       setPlanUser(null);
     } catch (cause) { toast.error(cause instanceof Error ? cause.message : "The plan could not be saved."); }
     finally { setSavingPlan(false); }
@@ -133,7 +133,7 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
           <h1 className="text-2xl font-semibold">Improvexus admin</h1>
           <p className="text-sm text-neutral-600">Signed in as {adminEmail} · unlimited audits</p>
         </div>
-        <a href="/audit" className="text-sm underline">Back to workspace</a>
+        <a href="/" className="text-sm underline">Back to workspace</a>
       </div>
 
       {driveParam && driveMessages[driveParam] && (
@@ -190,7 +190,7 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
                   <TableCell>{u.fullName || "—"}</TableCell>
                   <TableCell>{u.mobile || "—"}</TableCell>
                   <TableCell><Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge></TableCell>
-                  <TableCell><Badge variant={u.plan === "subscriber" ? "default" : "secondary"}>{u.plan}</Badge></TableCell>
+                  <TableCell><Badge variant={u.auditEntitlement === "free" ? "secondary" : "default"}>{u.auditEntitlement}</Badge>{u.auditCredits > 0 && <span className="ix-muted-inline"> +{Math.max(0, u.auditCredits - u.auditCreditsUsed)} credits</span>}</TableCell>
                   <TableCell>{u.emailVerified ? <Badge variant="default">verified</Badge> : <Badge variant="secondary">unverified</Badge>}</TableCell>
                   <TableCell>{u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString() : "Never"}</TableCell>
                   <TableCell>{u.auditCount}</TableCell>
@@ -246,9 +246,9 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">Plan</label>
-              <Select value={planForm.plan} onValueChange={v => setPlanForm(f => ({ ...f, plan: v }))}>
+              <Select value={planForm.auditEntitlement} onValueChange={v => setPlanForm(f => ({ ...f, auditEntitlement: v }))}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="free">Free (preview only)</SelectItem><SelectItem value="subscriber">Subscriber (full access)</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="free">Free (preview only)</SelectItem><SelectItem value="subscribed">Subscribed (full access)</SelectItem><SelectItem value="admin_granted">Granted by Improvexus (full access)</SelectItem></SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">

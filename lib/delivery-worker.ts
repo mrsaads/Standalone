@@ -30,15 +30,20 @@ const BACKOFF_MAX_SECONDS = 1800; // 30 minutes
 
 type DeliveryJobRow = typeof deliveryJobs.$inferSelect;
 
-// Idempotent: the unique (audit_id, kind) index means calling this twice for the same audit
-// (automatic enqueue after generation, then later an admin manual retry) creates at most one job
-// per kind — the second call is a no-op via ON CONFLICT DO NOTHING.
+// Idempotent: the unique (subject_type, subject_id, kind) index means calling this twice for the
+// same audit (automatic enqueue after generation, then later an admin manual retry) creates at most
+// one job per kind — the second call is a no-op via ON CONFLICT DO NOTHING.
+//
+// `subjectId` is set to the audit id and `subjectType` to "audit", which is what makes the new
+// index exactly as strict for audits as the (audit_id, kind) index it replaced in migration 0004.
+// `auditId` is still populated as well: every audit-specific code path below (and all three local
+// test suites) reads it, and keeping it means nothing about audit delivery changed behaviourally.
 export async function enqueueDelivery(auditId: string) {
   const db = getDb();
   await db.insert(deliveryJobs).values([
-    { auditId, kind: "drive" },
-    { auditId, kind: "email" },
-  ]).onConflictDoNothing({ target: [deliveryJobs.auditId, deliveryJobs.kind] });
+    { auditId, subjectType: "audit", subjectId: auditId, kind: "drive" },
+    { auditId, subjectType: "audit", subjectId: auditId, kind: "email" },
+  ]).onConflictDoNothing({ target: [deliveryJobs.subjectType, deliveryJobs.subjectId, deliveryJobs.kind] });
 }
 
 // Used by the admin panel's manual "retry delivery" action: makes sure jobs exist (in case this is
@@ -109,7 +114,17 @@ async function markFailed(job: DeliveryJobRow, error: unknown) {
 // second, independent layer.
 async function processJob(job: DeliveryJobRow) {
   const db = getDb();
-  const [audit] = await db.select().from(profileAudits).where(eq(profileAudits.id, job.auditId)).limit(1);
+
+  // `auditId` became nullable in migration 0004 so this queue could also carry announcement jobs.
+  // Narrow it here rather than asserting it: an audit job without an audit id is a corrupt row, and
+  // failing it loudly (it will back off and eventually exhaust its attempts, visible in the admin
+  // panel) is better than a non-null assertion that would turn it into a confusing downstream
+  // crash. `subjectType` is the authoritative discriminator; `auditId` is the payload.
+  if (job.subjectType !== "audit") throw new Error(`Unsupported delivery job subject: ${job.subjectType}`);
+  const auditId = job.auditId;
+  if (!auditId) throw new Error("Audit delivery job has no audit id.");
+
+  const [audit] = await db.select().from(profileAudits).where(eq(profileAudits.id, auditId)).limit(1);
   if (!audit || audit.status !== "completed") throw new Error("Audit not found or not completed yet.");
 
   const report = JSON.parse(audit.reportJson) as AuditReport;
@@ -125,7 +140,7 @@ async function processJob(job: DeliveryJobRow) {
       throw new Error(`Report file generation failed: ${error instanceof Error ? error.message : "unknown error"}`);
     }
     const result = await fileAuditToDrive({
-      auditId: job.auditId,
+      auditId,
       userEmail: audit.userEmail,
       profileName: audit.profileName,
       upworkLink: audit.profileUrl,
@@ -146,10 +161,10 @@ async function processJob(job: DeliveryJobRow) {
     const appOrigin = process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL || process.env.NEXT_PUBLIC_APP_ORIGIN;
     if (!appOrigin) throw new Error("APP_ORIGIN is not configured; cannot build the report link.");
     const result = await sendAuditReadyEmail({
-      auditId: job.auditId,
+      auditId,
       userEmail: audit.userEmail,
       profileName: audit.profileName,
-      reportUrl: `${appOrigin}/audit?openAudit=${job.auditId}`,
+      reportUrl: `${appOrigin}/audits?openAudit=${auditId}`,
     });
     if (!result.sent) throw new Error(result.error || "Email send failed.");
     return;

@@ -1,176 +1,97 @@
-/* Auth pages (login, signup, reset, reset-confirm, verify): black/charcoal palette with soft
-   grayscale lighting, restrained borders, rounded pill inputs and buttons — modeled on
-   resend.com/login (inspected live before building this), rebuilt with Improvexus's own mark,
-   wordmark and copy. Scoped entirely under .ix-auth-page / --ix-auth-* custom properties so it
-   never touches the app's own teal/violet theme in app/globals.css. */
+/* Auth screens (login, signup, password reset, verify, confirm).
+   Composition measured from the reference sign-in page and reproduced here: a flat near-black
+   page, the wordmark alone in the top-left, and a single LEFT-ALIGNED column — not a centred card.
+   The left alignment is the most recognisable part of the reference and the part most often lost
+   when a layout is copied by eye, so it is pinned to the same measure (536px) and the same vertical
+   start as the original. See app/design-system.css for where every value came from. */
 
-.ix-auth-page {
-  --ix-auth-bg: #060607;
-  --ix-auth-fg: #f5f5f6;
-  --ix-auth-muted: #9a9aa3;
-  --ix-auth-muted-2: #6f6f76;
-  --ix-auth-border: rgba(255, 255, 255, 0.1);
-  --ix-auth-input-bg: rgba(255, 255, 255, 0.045);
-  --ix-auth-input-border: rgba(255, 255, 255, 0.13);
-  --ix-auth-danger: #f2755a;
-
+.ix-auth {
   min-height: 100dvh;
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 24px;
-  overflow: hidden;
-  background: var(--ix-auth-bg);
-  color: var(--ix-auth-fg);
-}
-
-/* Soft grayscale diagonal light + vignette — an original approximation of "soft lighting across a
-   dark surface", not a reproduction of any specific photographed or rendered background asset. */
-.ix-auth-veil {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background:
-    radial-gradient(1100px 780px at 12% 15%, rgba(255, 255, 255, 0.055), transparent 60%),
-    radial-gradient(900px 720px at 88% 85%, rgba(255, 255, 255, 0.04), transparent 58%),
-    linear-gradient(112deg, transparent 28%, rgba(255, 255, 255, 0.03) 42%, transparent 56%),
-    linear-gradient(112deg, transparent 58%, rgba(255, 255, 255, 0.02) 70%, transparent 82%);
-}
-
-.ix-auth-home {
-  position: absolute;
-  top: 22px;
-  left: 22px;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ix-auth-muted);
-  text-decoration: none;
-  transition: color 0.15s ease;
-}
-.ix-auth-home:hover { color: var(--ix-auth-fg); }
-
-.ix-auth-card {
-  position: relative;
-  z-index: 1;
-  width: 100%;
-  max-width: 372px;
+  background: var(--ix-bg);
+  color: var(--ix-text);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  text-align: center;
-  gap: 20px;
 }
 
-.ix-auth-brand { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-.ix-auth-mark {
-  width: 42px;
-  height: 42px;
+.ix-auth__bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: var(--ix-gap);
+  padding: 28px 32px;
+}
+
+.ix-auth__body {
+  flex: 1;
+  display: flex;
   justify-content: center;
-  border-radius: 11px;
-  background: linear-gradient(155deg, #232326, #0b0b0d);
-  border: 1px solid var(--ix-auth-border);
-  color: var(--ix-auth-fg);
-  font-family: var(--font-poppins), ui-sans-serif, system-ui, sans-serif;
-  font-weight: 700;
-  font-size: 18px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-.ix-auth-wordmark {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
-  color: var(--ix-auth-muted);
+  padding: 0 32px 64px;
 }
 
-.ix-auth-heading { display: flex; flex-direction: column; gap: 8px; }
-.ix-auth-title { font-size: 25px; font-weight: 700; letter-spacing: -0.02em; color: var(--ix-auth-fg); }
-.ix-auth-subtitle { font-size: 14px; color: var(--ix-auth-muted); }
-.ix-auth-subtitle strong, .ix-auth-subtitle a { color: var(--ix-auth-fg); font-weight: 700; text-decoration: none; }
-.ix-auth-subtitle a:hover { text-decoration: underline; }
+/* The column itself. `margin-inline: auto` centres the COLUMN on wide screens while the content
+   inside it stays left-aligned — which is exactly what the reference does. */
+.ix-auth__col {
+  width: 100%;
+  max-width: var(--ix-measure-narrow);
+  margin-inline: auto;
+  padding-top: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ix-gap-lg);
+}
 
-.ix-auth-body { width: 100%; display: flex; flex-direction: column; gap: 16px; }
-.ix-auth-body form { display: flex; flex-direction: column; gap: 13px; }
+.ix-auth__heading { display: flex; flex-direction: column; gap: var(--ix-gap-sm); }
 
-.ix-auth-field { display: flex; flex-direction: column; gap: 7px; text-align: left; font-size: 13px; font-weight: 600; color: var(--ix-auth-muted); }
+.ix-auth__form { display: flex; flex-direction: column; gap: var(--ix-gap); }
 
-/* Rounded-pill inputs, matching resend.com/login's field treatment. Specificity beats the
-   Tailwind utility classes on <Input> without needing !important anywhere but the two properties
-   Tailwind's own utility layer is most likely to win on (radius, background) in production CSS
-   ordering. */
-.ix-auth-page [data-slot="input"] {
-  height: 44px;
-  border-radius: 999px !important;
-  border: 1px solid var(--ix-auth-input-border);
-  background: var(--ix-auth-input-bg) !important;
-  padding: 0 18px;
-  color: var(--ix-auth-fg);
+/* Field pitch: label (20) + 8 gap + input (40) + 16 between fields = the 84px rhythm measured on
+   the reference. */
+.ix-auth__fields { display: flex; flex-direction: column; gap: var(--ix-gap); }
+
+.ix-auth__row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--ix-gap); }
+
+/* The primary action sits at its natural width, left-aligned under the fields — not stretched
+   across the column. Another detail that is easy to lose and very visible when it is wrong. */
+.ix-auth__actions { display: flex; align-items: center; gap: var(--ix-gap); flex-wrap: wrap; }
+
+.ix-auth__links {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ix-gap-sm);
   font-size: 14px;
+  color: var(--ix-muted);
 }
-.ix-auth-page [data-slot="input"]::placeholder { color: var(--ix-auth-muted-2); }
-.ix-auth-page [data-slot="input"]:focus-visible {
-  border-color: rgba(255, 255, 255, 0.35);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
+.ix-auth__links a { color: var(--ix-accent); text-decoration: none; }
+.ix-auth__links a:hover { text-decoration: underline; text-underline-offset: 2px; }
+
+.ix-auth__error {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ix-danger);
+  border-left: 2px solid var(--ix-danger);
+  padding-left: 12px;
+}
+.ix-auth__success {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--ix-positive);
+  border-left: 2px solid var(--ix-positive);
+  padding-left: 12px;
 }
 
-.ix-auth-error { font-size: 13px; color: var(--ix-auth-danger); text-align: left; }
-
-/* Polished pill button: quiet by default, lifts on hover, visibly (not just opacity-fades) inert
-   while submitting/disabled. */
-.ix-auth-page [data-slot="button"][type="submit"],
-.ix-auth-page .ix-auth-submit {
-  height: 44px;
-  border-radius: 999px !important;
-  background: linear-gradient(180deg, #f5f5f6, #e4e4e6) !important;
-  color: #0b0b0d !important;
-  font-weight: 700;
-  border: none;
-  transition: transform 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.4) inset, 0 8px 20px rgba(0, 0, 0, 0.35);
-}
-.ix-auth-page [data-slot="button"][type="submit"]:hover:not(:disabled) {
-  background: linear-gradient(180deg, #ffffff, #efeff0) !important;
-  transform: translateY(-1px);
-  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.5) inset, 0 12px 26px rgba(0, 0, 0, 0.4);
-}
-.ix-auth-page [data-slot="button"][type="submit"]:disabled {
-  background: rgba(255, 255, 255, 0.12) !important;
-  color: rgba(255, 255, 255, 0.4) !important;
-  box-shadow: none;
-  cursor: not-allowed;
+.ix-auth__terms {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ix-faint);
+  max-width: 46ch;
 }
 
-.ix-auth-links { display: flex; justify-content: space-between; font-size: 13px; color: var(--ix-auth-muted); width: 100%; }
-.ix-auth-links a { color: var(--ix-auth-muted); text-decoration: underline; text-underline-offset: 2px; }
-.ix-auth-links a:hover { color: var(--ix-auth-fg); }
-.ix-auth-links-center { display: flex; justify-content: center; font-size: 13px; color: var(--ix-auth-muted); text-decoration: underline; text-underline-offset: 2px; }
-.ix-auth-links-center:hover { color: var(--ix-auth-fg); }
-
-.ix-auth-terms { font-size: 12px; color: var(--ix-auth-muted-2); line-height: 1.5; }
-
-@media (max-width: 520px) {
-  .ix-auth-card { max-width: 100%; }
+/* Phone. The column drops to full width with a 20px gutter and the two-up name/mobile row
+   collapses to one column, so nothing is ever cramped or horizontally scrollable. */
+@media (max-width: 640px) {
+  .ix-auth__bar { padding: 20px; }
+  .ix-auth__body { padding: 0 20px 48px; }
+  .ix-auth__col { padding-top: 24px; gap: var(--ix-gap); }
+  .ix-auth__row { grid-template-columns: 1fr; }
+  .ix-btn--primary { width: 100%; }
 }
-
-/* Per-browser email allowance + lock countdown (app/auth/email-quota.tsx). */
-.ix-auth-quota { font-size: 13px; color: var(--ix-auth-muted); margin: 4px 0 2px; }
-.ix-auth-quota-locked {
-  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
-  padding: 14px 16px; margin: 6px 0 4px; border-radius: 10px;
-  border: 1px solid rgba(242, 117, 90, 0.35); background: rgba(242, 117, 90, 0.08);
-  color: var(--ix-auth-muted);
-}
-.ix-auth-quota-locked strong { color: var(--ix-auth-fg); font-size: 14px; }
-.ix-auth-quota-clock {
-  font-variant-numeric: tabular-nums; font-size: 28px; font-weight: 700; letter-spacing: 0.04em;
-  color: var(--ix-auth-danger);
-}
-.ix-auth-hint { font-size: 12px; color: var(--ix-auth-muted-2); margin-top: 4px; }
-.ix-auth-trap { position: absolute !important; left: -10000px !important; width: 1px; height: 1px; overflow: hidden; }

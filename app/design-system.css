@@ -1,0 +1,323 @@
+/* =============================================================================================
+   IMPROVEXUS DESIGN SYSTEM
+   ---------------------------------------------------------------------------------------------
+   Composition, typography treatment, spacing, surface colours and control hierarchy are modelled
+   on Render's sign-in page, measured directly from the live page rather than eyeballed from a
+   screenshot. The values that define the look are, from that measurement:
+
+     page background      #0d0d0d          near-black, flat (Render's login has no gradient)
+     body text            #f0f0f0
+     heading              #ffffff, 24px, weight 500, line-height 28px
+     field label          14px, weight 500, letter-spacing 0.07px, 8px below
+     input                40px tall, 14px, TRANSPARENT fill, 1px #6b6b6b border, radius 0
+     primary button       48px tall, 16px, BLACK text on WHITE, radius 0, width fits content
+     secondary button     40px tall, 14px, transparent, 1px rgba(255,255,255,.4), radius 0
+     layout               single left-aligned column, ~536px measure, wordmark top-left
+
+   The signature of this system is the square corner: radius 0 everywhere, including inputs and
+   buttons. That one decision does most of the work of making a screen read as this family.
+
+   WHAT IS OURS, NOT RENDER'S: the wordmark is IMPROVEXUS set in our own treatment, there is no
+   Render mark anywhere, and the accent is --ix-accent below — a lightened form of Improvexus's
+   existing violet (#8b5cf6, already in this app before this redesign), NOT Render's link colour.
+   Everything borrowed here is layout and proportion, which is the part the brief asked to match.
+   ============================================================================================= */
+
+:root {
+  /* Surfaces, darkest to lightest. --ix-bg is the page; --ix-surface is a raised card; --ix-raised
+     is a card on a card (a metric tile inside a report panel). */
+  --ix-bg: #0d0d0d;
+  --ix-surface: #161616;
+  --ix-raised: #1e1e1e;
+
+  /* Text. --ix-text is body copy, --ix-heading is pure white for headings only, --ix-muted is
+     secondary copy and labels that are not doing work. --ix-muted sits at 4.6:1 on --ix-bg, above
+     the 4.5:1 floor for normal text, so nothing in this system relies on colour the eye can't
+     resolve. */
+  --ix-text: #f0f0f0;
+  --ix-heading: #ffffff;
+  --ix-muted: #a0a0a0;
+  --ix-faint: #6b6b6b;
+
+  /* Lines. --ix-border is the input/divider line; --ix-border-strong is a control outline that has
+     to read as interactive. */
+  --ix-border: #2a2a2a;
+  --ix-border-input: #6b6b6b;
+  --ix-border-strong: rgba(255, 255, 255, 0.4);
+
+  /* Accent — ours. Used for links, focus rings and the one emphasis colour in a screen. */
+  --ix-accent: #cbb4ff;
+  --ix-accent-dim: #8b5cf6;
+
+  /* Status. Deliberately desaturated so a dashboard full of badges doesn't turn into a fruit bowl. */
+  --ix-positive: #6ee7a8;
+  --ix-warning: #f4c76b;
+  --ix-danger: #ff8080;
+
+  /* The square corner. */
+  --ix-radius: 0px;
+
+  /* Vertical rhythm, 4px based. */
+  --ix-gap-xs: 6px;
+  --ix-gap-sm: 8px;
+  --ix-gap: 16px;
+  --ix-gap-lg: 24px;
+  --ix-gap-xl: 40px;
+
+  /* Measures. --ix-measure-narrow is the auth column (matches Render's 536px); --ix-measure is the
+     application content width. */
+  --ix-measure-narrow: 536px;
+  --ix-measure: 1120px;
+
+  --ix-font: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --ix-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* ---------------------------------------------------------------------------------------------
+   Wordmark. Not an image: an image of a logotype cannot be read by a screen reader, cannot be
+   selected, and goes blurry on a display the raster wasn't cut for. Set as text, it is sharp at any
+   size and announces itself correctly.
+   --------------------------------------------------------------------------------------------- */
+.ix-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--ix-font);
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--ix-heading);
+  text-decoration: none;
+  text-transform: uppercase;
+  line-height: 1;
+}
+.ix-wordmark__mark {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  /* The one place a diagonal appears in this system — an upward stroke, which is what the name is
+     about. Drawn in CSS so it needs no asset and inherits the accent token. */
+  background: linear-gradient(135deg, var(--ix-accent) 0%, var(--ix-accent-dim) 100%);
+  clip-path: polygon(0 100%, 42% 100%, 100% 0, 58% 0);
+}
+.ix-wordmark--sm { font-size: 15px; }
+.ix-wordmark--sm .ix-wordmark__mark { width: 18px; height: 18px; }
+
+/* ---------------------------------------------------------------------------------------------
+   Typography
+   --------------------------------------------------------------------------------------------- */
+.ix-title {
+  font-size: 24px;
+  font-weight: 500;
+  line-height: 28px;
+  color: var(--ix-heading);
+  margin: 0;
+}
+.ix-title--lg { font-size: 32px; line-height: 38px; letter-spacing: -0.01em; }
+.ix-subtitle {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--ix-muted);
+  margin: 0;
+}
+/* A link inside a subtitle has to be visibly a link. Without this it inherits the muted grey and
+   reads as prose — which is what "Already have an account? Sign in." looked like before. */
+.ix-subtitle a { color: var(--ix-accent); text-decoration: none; }
+.ix-subtitle a:hover { text-decoration: underline; text-underline-offset: 2px; }
+.ix-subtitle strong { color: var(--ix-heading); font-weight: 500; }
+.ix-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ix-muted);
+  margin: 0;
+}
+.ix-link {
+  color: var(--ix-accent);
+  text-decoration: none;
+}
+.ix-link:hover { text-decoration: underline; text-underline-offset: 2px; }
+.ix-muted-inline { color: var(--ix-muted); font-size: 13px; }
+
+/* ---------------------------------------------------------------------------------------------
+   Form controls. Matching the reference's transparent fill + hairline border + square corner.
+   --------------------------------------------------------------------------------------------- */
+.ix-field { display: flex; flex-direction: column; gap: var(--ix-gap-sm); }
+.ix-field > label,
+.ix-label {
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.07px;
+  color: var(--ix-text);
+}
+.ix-input,
+.ix-textarea,
+.ix-select {
+  width: 100%;
+  /* Explicit height rather than min-height + padding: the reference input measures 39.99px, and
+     letting line-height decide pushed ours to 43px. Textarea overrides this back to auto below. */
+  height: 40px;
+  line-height: 20px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--ix-text);
+  background: transparent;
+  border: 1px solid var(--ix-border-input);
+  border-radius: var(--ix-radius);
+  outline: none;
+}
+.ix-textarea { height: auto; min-height: 96px; resize: vertical; line-height: 1.5; padding: 10px 12px; }
+.ix-select { appearance: none; background-image: none; }
+.ix-input::placeholder, .ix-textarea::placeholder { color: var(--ix-faint); }
+.ix-input:hover, .ix-textarea:hover, .ix-select:hover { border-color: #8a8a8a; }
+.ix-input:focus-visible, .ix-textarea:focus-visible, .ix-select:focus-visible {
+  border-color: var(--ix-accent);
+  box-shadow: 0 0 0 1px var(--ix-accent);
+}
+.ix-input[aria-invalid="true"], .ix-textarea[aria-invalid="true"] { border-color: var(--ix-danger); }
+.ix-field-help { font-size: 13px; color: var(--ix-muted); line-height: 1.5; }
+
+/* ---------------------------------------------------------------------------------------------
+   Buttons. Three levels only — primary (white), secondary (outline), quiet (text) — because a
+   screen with one obvious primary action is the whole point and a fourth level erodes it.
+   --------------------------------------------------------------------------------------------- */
+.ix-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ix-gap-sm);
+  font: inherit;
+  border-radius: var(--ix-radius);
+  border: 1px solid transparent;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background-color .12s ease, border-color .12s ease, color .12s ease;
+}
+.ix-btn:disabled { cursor: default; opacity: .5; }
+
+.ix-btn--primary {
+  height: 48px;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 400;
+  color: #000;
+  background: #fff;
+}
+.ix-btn--primary:hover:not(:disabled) { background: #e2e2e2; }
+
+.ix-btn--secondary {
+  height: 40px;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: #e3e3e3;
+  background: transparent;
+  border-color: var(--ix-border-strong);
+}
+.ix-btn--secondary:hover:not(:disabled) { background: rgba(255, 255, 255, 0.06); border-color: #fff; }
+
+.ix-btn--quiet {
+  height: 36px;
+  padding: 8px 4px;
+  font-size: 14px;
+  color: var(--ix-muted);
+  background: transparent;
+}
+.ix-btn--quiet:hover:not(:disabled) { color: var(--ix-heading); }
+
+.ix-btn--block { width: 100%; }
+.ix-btn--danger { color: var(--ix-danger); border-color: rgba(255, 128, 128, .45); }
+
+/* ---------------------------------------------------------------------------------------------
+   Surfaces
+   --------------------------------------------------------------------------------------------- */
+.ix-card {
+  background: var(--ix-surface);
+  border: 1px solid var(--ix-border);
+  border-radius: var(--ix-radius);
+  padding: var(--ix-gap-lg);
+}
+.ix-card--flush { padding: 0; }
+.ix-tile {
+  background: var(--ix-raised);
+  border: 1px solid var(--ix-border);
+  padding: var(--ix-gap);
+}
+.ix-divider { height: 1px; background: var(--ix-border); border: 0; margin: var(--ix-gap-lg) 0; }
+
+.ix-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  font-size: 12px;
+  line-height: 16px;
+  border: 1px solid var(--ix-border);
+  color: var(--ix-muted);
+  background: var(--ix-raised);
+}
+.ix-badge--positive { color: var(--ix-positive); border-color: rgba(110, 231, 168, .35); }
+.ix-badge--warning { color: var(--ix-warning); border-color: rgba(244, 199, 107, .35); }
+.ix-badge--danger { color: var(--ix-danger); border-color: rgba(255, 128, 128, .35); }
+.ix-badge--accent { color: var(--ix-accent); border-color: rgba(203, 180, 255, .35); }
+
+/* An inline explanation of why something is locked, and what to do about it. Used wherever the
+   brief asks for "explain locked access and how to obtain it" rather than a bare disabled control. */
+.ix-notice {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--ix-border);
+  background: var(--ix-raised);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--ix-text);
+}
+.ix-notice svg { flex: none; margin-top: 2px; color: var(--ix-muted); }
+.ix-notice--warning { border-color: rgba(244, 199, 107, .3); }
+.ix-notice--danger { border-color: rgba(255, 128, 128, .3); }
+
+/* Empty state: a heading, one sentence of orientation, and at most one action. */
+.ix-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--ix-gap-sm);
+  padding: var(--ix-gap-xl) var(--ix-gap-lg);
+  border: 1px dashed var(--ix-border);
+  color: var(--ix-muted);
+}
+.ix-empty h3 { font-size: 15px; font-weight: 500; color: var(--ix-heading); margin: 0; }
+.ix-empty p { font-size: 14px; margin: 0; max-width: 52ch; line-height: 1.55; }
+.ix-empty > :last-child { margin-top: var(--ix-gap-sm); }
+
+/* ---------------------------------------------------------------------------------------------
+   Accessibility
+   --------------------------------------------------------------------------------------------- */
+:where(a, button, input, textarea, select, summary, [tabindex]):focus-visible {
+  outline: 2px solid var(--ix-accent);
+  outline-offset: 2px;
+}
+.ix-skip-link {
+  position: fixed;
+  left: 12px;
+  top: -100px;
+  z-index: 999;
+  padding: 12px 16px;
+  background: var(--ix-accent);
+  color: #12091f;
+  font-weight: 600;
+}
+.ix-skip-link:focus { top: 12px; }
+.ix-visually-hidden {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ix-btn { transition: none; }
+}

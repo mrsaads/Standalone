@@ -1,0 +1,143 @@
+/* The frame every signed-in screen sits in: a thin top bar with the wordmark, the primary
+   navigation, the notification bell and the account menu — then a single left-aligned content
+   column on the same measure system as the auth screens, so moving between them doesn't feel like
+   moving between two products. */
+
+.ix-shell {
+  min-height: 100dvh;
+  background: var(--ix-bg);
+  color: var(--ix-text);
+  display: flex;
+  flex-direction: column;
+}
+
+.ix-shell__bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--ix-gap-lg);
+  padding: 0 24px;
+  height: 60px;
+  background: var(--ix-bg);
+  border-bottom: 1px solid var(--ix-border);
+}
+
+.ix-shell__nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ix-shell__nav::-webkit-scrollbar { display: none; }
+
+.ix-shell__link {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 59px;
+  padding: 0 12px;
+  font-size: 14px;
+  color: var(--ix-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  border-bottom: 2px solid transparent;
+}
+.ix-shell__link:hover { color: var(--ix-heading); }
+/* aria-current drives the active style, so the visual state and the state announced to assistive
+   tech can never disagree. */
+.ix-shell__link[aria-current="page"] {
+  color: var(--ix-heading);
+  border-bottom-color: var(--ix-accent);
+}
+
+/* Unread count on the notifications link. Hidden entirely at zero rather than showing a "0". */
+.ix-shell__count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: #12091f;
+  background: var(--ix-accent);
+}
+
+.ix-shell__right { display: flex; align-items: center; gap: var(--ix-gap); flex: none; }
+.ix-shell__email { font-size: 13px; color: var(--ix-muted); max-width: 22ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ix-shell__main { flex: 1; padding: 40px 24px 80px; }
+.ix-shell__col { width: 100%; max-width: var(--ix-measure); margin-inline: auto; }
+
+.ix-page-head { display: flex; flex-direction: column; gap: var(--ix-gap-sm); margin-bottom: var(--ix-gap-xl); }
+.ix-page-head__row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--ix-gap); flex-wrap: wrap; }
+
+/* Two-up card grid for the welcome dashboard. Collapses to one column below 860px. */
+.ix-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--ix-gap-lg); }
+.ix-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--ix-gap); }
+.ix-stack { display: flex; flex-direction: column; gap: var(--ix-gap); }
+.ix-stack--lg { gap: var(--ix-gap-lg); }
+.ix-row { display: flex; align-items: center; gap: var(--ix-gap); flex-wrap: wrap; }
+
+/* The two big choices after sign-in. Deliberately tall and equal-height, with the action pinned to
+   the bottom so both cards' buttons line up regardless of how much body copy each carries. */
+.ix-choice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ix-gap);
+  min-height: 260px;
+  padding: 28px;
+  background: var(--ix-surface);
+  border: 1px solid var(--ix-border);
+}
+.ix-choice__icon { color: var(--ix-accent); }
+.ix-choice__title { font-size: 20px; font-weight: 500; color: var(--ix-heading); margin: 0; }
+.ix-choice__body { font-size: 14px; line-height: 1.6; color: var(--ix-muted); margin: 0; max-width: 46ch; }
+.ix-choice__meta { display: flex; flex-wrap: wrap; gap: var(--ix-gap-sm); }
+.ix-choice__action { margin-top: auto; padding-top: var(--ix-gap-sm); display: flex; gap: var(--ix-gap); flex-wrap: wrap; }
+
+/* A labelled figure (credits left, audits this week, subscription status). */
+.ix-stat { display: flex; flex-direction: column; gap: 4px; }
+.ix-stat__label { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--ix-muted); }
+.ix-stat__value { font-size: 20px; font-weight: 500; color: var(--ix-heading); }
+.ix-stat__note { font-size: 13px; color: var(--ix-muted); }
+
+/* A simple record list — saved audits, reports, notifications. */
+.ix-list { display: flex; flex-direction: column; border: 1px solid var(--ix-border); }
+.ix-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--ix-gap);
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--ix-border);
+  color: inherit;
+  text-decoration: none;
+}
+.ix-list__item:last-child { border-bottom: 0; }
+.ix-list__item:hover { background: var(--ix-raised); }
+.ix-list__main { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.ix-list__title { font-size: 14px; color: var(--ix-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ix-list__sub { font-size: 13px; color: var(--ix-muted); }
+.ix-list__item--unread { background: rgba(203, 180, 255, .05); }
+.ix-list__dot { width: 7px; height: 7px; flex: none; background: var(--ix-accent); border-radius: 50%; }
+
+@media (max-width: 860px) {
+  .ix-grid-2 { grid-template-columns: 1fr; }
+  .ix-grid-3 { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .ix-shell__bar { height: 56px; padding: 0 16px; gap: var(--ix-gap); }
+  .ix-shell__link { height: 55px; padding: 0 10px; }
+  .ix-shell__email { display: none; }
+  .ix-shell__main { padding: 24px 16px 64px; }
+  .ix-page-head { margin-bottom: var(--ix-gap-lg); }
+  .ix-choice { min-height: 0; padding: 20px; }
+  .ix-choice__action .ix-btn { width: 100%; }
+}

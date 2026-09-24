@@ -60,12 +60,12 @@ export async function precheckWeeklyLimit(user: AppUser) {
     .where(recentAllowanceCondition(user.id))
     .limit(1);
   if (!recent) return;
-  // The weekly free slot is already used this week — but an admin may have granted this account
-  // (typically a managed client) extra one-off credits, configured per-account rather than via any
-  // paid plan (see profiles.bonusAuditCredits). This is a fast, non-authoritative pre-check only;
-  // the real race-safe spend happens inside reserveAuditSlot()'s transaction below.
-  const [row] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, user.id)).limit(1);
-  if (!row || row.bonusAuditCredits <= 0) throw new WeeklyLimitError();
+  // The weekly allowance is spent, but an admin-granted credit can still admit this request. Read
+  // the live value rather than trusting the `user` snapshot, which may be seconds stale.
+  const [row] = await db.select({ granted: profiles.auditCredits, used: profiles.auditCreditsUsed })
+    .from(profiles).where(eq(profiles.id, user.id)).limit(1);
+  if ((row?.granted ?? 0) - (row?.used ?? 0) > 0) return;
+  throw new WeeklyLimitError();
 }
 
 // The real enforcement, and the fix for "reserve the allowance before AI generation starts":
@@ -87,24 +87,25 @@ export async function precheckWeeklyLimit(user: AppUser) {
 export async function reserveAuditSlot(user: AppUser, profileKey: string, contentHash: string, profileUrl: string) {
   const db = getDb();
   const leaseToken = randomUUID();
-  const auditId = await db.transaction(async tx => {
-    let usedBonusCredit = false;
+  const result = await db.transaction(async tx => {
+    let creditSpent = false;
     if (user.role !== "admin") {
-      // Holding this per-user advisory lock across both the "is the weekly slot free" check AND
-      // (when it isn't) the bonus-credit decrement is what makes the decrement itself race-safe —
-      // two concurrent requests from the same account can never both read the same bonusAuditCredits
-      // value and both spend it, the same guarantee this lock already gave the weekly-slot check.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.id}))`);
       const [recent] = await tx.select({ id: profileAudits.id }).from(profileAudits)
         .where(recentAllowanceCondition(user.id))
         .limit(1);
       if (recent) {
-        const [spent] = await tx.update(profiles)
-          .set({ bonusAuditCredits: sql`${profiles.bonusAuditCredits} - 1` })
-          .where(and(eq(profiles.id, user.id), sql`${profiles.bonusAuditCredits} > 0`))
+        // The rolling weekly allowance is already spent. Fall back to an admin-granted credit if
+        // one is left. The increment happens inside the SAME advisory-lock-guarded transaction as
+        // the reservation insert, and the `used < granted` predicate is evaluated by Postgres as
+        // part of the UPDATE — so two concurrent requests can never both consume the last credit:
+        // whichever commits second matches zero rows and is rejected.
+        const spent = await tx.update(profiles)
+          .set({ auditCreditsUsed: sql`${profiles.auditCreditsUsed} + 1` })
+          .where(and(eq(profiles.id, user.id), sql`${profiles.auditCreditsUsed} < ${profiles.auditCredits}`))
           .returning({ id: profiles.id });
-        if (!spent) throw new WeeklyLimitError();
-        usedBonusCredit = true;
+        if (spent.length === 0) throw new WeeklyLimitError();
+        creditSpent = true;
       }
     }
     const [inserted] = await tx.insert(profileAudits).values({
@@ -116,11 +117,11 @@ export async function reserveAuditSlot(user: AppUser, profileKey: string, conten
       billable: true,
       status: "reserved",
       leaseToken,
-      usedBonusCredit,
+      creditSpent,
     }).returning({ id: profileAudits.id });
-    return inserted.id;
+    return { id: inserted.id, creditSpent };
   });
-  return { auditId, leaseToken };
+  return { auditId: result.id, leaseToken, creditSpent: result.creditSpent };
 }
 
 // Call at natural checkpoints during the live AI call (this route retries the provider at most
@@ -185,13 +186,24 @@ export async function completeReservation(auditId: string, leaseToken: string, p
 // turns out to already be released.
 export async function releaseReservation(auditId: string, leaseToken: string) {
   const db = getDb();
-  const [row] = await db.update(profileAudits).set({ status: "failed", billable: false, updatedAt: new Date() })
-    .where(and(eq(profileAudits.id, auditId), eq(profileAudits.leaseToken, leaseToken), eq(profileAudits.status, "reserved")))
-    .returning({ userId: profileAudits.userId, usedBonusCredit: profileAudits.usedBonusCredit });
-  // A failed generation must never cost the account anything — including a bonus credit that was
-  // spent (instead of the weekly slot) to admit this reservation in the first place. This mirrors
-  // exactly why `billable` is flipped to false above for the weekly slot.
-  if (row?.usedBonusCredit) {
-    await db.update(profiles).set({ bonusAuditCredits: sql`${profiles.bonusAuditCredits} + 1` }).where(eq(profiles.id, row.userId));
-  }
+  await db.transaction(async tx => {
+    // The `returning` is what makes the refund below safe: it tells us whether THIS call is the one
+    // that actually released the row. A second, racing release (or a late call from a reservation
+    // that was already reaped) matches zero rows, so it cannot trigger a second refund of the same
+    // credit.
+    const released = await tx.update(profileAudits)
+      .set({ status: "failed", billable: false, updatedAt: new Date() })
+      .where(and(eq(profileAudits.id, auditId), eq(profileAudits.leaseToken, leaseToken), eq(profileAudits.status, "reserved")))
+      .returning({ userId: profileAudits.userId, creditSpent: profileAudits.creditSpent });
+    const row = released[0];
+    if (!row?.creditSpent) return;
+
+    // Refund the one credit this reservation consumed. A failed generation — an AI outage, invalid
+    // model output, a storage error — must not cost the customer an allowance, and that has to hold
+    // for credits exactly as it already holds for the weekly slot. `greatest(..., 0)` is a floor
+    // against ever driving the counter negative if this were somehow reached twice.
+    await tx.update(profiles)
+      .set({ auditCreditsUsed: sql`greatest(${profiles.auditCreditsUsed} - 1, 0)` })
+      .where(eq(profiles.id, row.userId));
+  });
 }

@@ -2,10 +2,8 @@
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import type { EmailOtpType } from "@supabase/supabase-js";
-import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell } from "@/app/auth/auth-shell";
-import { safeNextPath } from "@/lib/http";
 
 // Why this page exists, instead of Supabase's email link going straight to
 // `/auth/v1/verify` (the default `{{ .ConfirmationURL }}` template): a bare GET link is exactly
@@ -29,8 +27,7 @@ function ConfirmInner() {
   const params = useSearchParams();
   const tokenHash = params.get("token_hash");
   const type = params.get("type") as EmailOtpType | null;
-  // Never trust `next` as-is: `javascript:` or an off-site URL here would run/redirect on click.
-  const next = safeNextPath(params.get("next"));
+  const next = params.get("next") || "/";
 
   const [state, setState] = useState<"idle" | "verifying" | "error">("idle");
   const [error, setError] = useState("");
@@ -38,7 +35,7 @@ function ConfirmInner() {
   if (!tokenHash || !type) {
     return (
       <AuthShell title="Invalid link">
-        <p className="ix-auth-error" role="alert">
+        <p className="ix-auth__error" role="alert">
           This confirmation link is missing required information. Request a new one from the
           verify or reset-password page.
         </p>
@@ -71,10 +68,12 @@ function ConfirmInner() {
 
   return (
     <AuthShell title={title} subtitle={subtitle}>
-      {error && <p role="alert" className="ix-auth-error">{error}</p>}
-      <Button type="button" disabled={state === "verifying"} onClick={confirm} className="mt-2">
-        {state === "verifying" ? "Confirming…" : "Confirm"}
-      </Button>
+      {error && <p role="alert" className="ix-auth__error">{error}</p>}
+      <div className="ix-auth__actions">
+        <button type="button" className="ix-btn ix-btn--primary" disabled={state === "verifying"} onClick={confirm}>
+          {state === "verifying" ? "Confirming…" : "Confirm"}
+        </button>
+      </div>
     </AuthShell>
   );
 }

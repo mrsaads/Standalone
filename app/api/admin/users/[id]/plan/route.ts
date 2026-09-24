@@ -22,7 +22,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 const bodySchema = z.object({
-  plan: z.enum(["free", "subscriber"]),
+  // AXIS 2 ONLY. This endpoint sets the audit entitlement and the audit credit allowance, and
+  // nothing else. It deliberately cannot set `role` (axis 1) or create a workspace membership
+  // (axis 3) — those have their own endpoints — so a mis-click here can never hand somebody the
+  // admin panel or another client's reports.
+  auditEntitlement: z.enum(["free", "subscribed", "admin_granted"]),
+  // The configurable allowance. Spent only after the rolling weekly allowance is exhausted; this
+  // is also how a managed client's *included* audits are granted, which is why it is set here
+  // rather than on the workspace assignment screen.
+  auditCredits: z.number().int().min(0).max(1000).default(0),
   amount: z.number().min(0).max(10_000_000).default(0),
   currency: z.string().trim().max(10).default(""),
   method: z.string().trim().max(40).default(""),
@@ -30,7 +38,7 @@ const bodySchema = z.object({
   note: z.string().trim().max(500).default(""),
 }).strict();
 
-// Sets a user's plan by hand and records why (method/reference/note the admin was told and typed
+// Sets a user's AUDIT ENTITLEMENT by hand and records why (method/reference/note the admin was told and typed
 // in). This is the entire "subscription management" / "payment details" feature for this build: no
 // payment provider is connected, so nothing entered here is validated against a real transaction —
 // it is exactly as trustworthy as the admin who typed it, which is why every call is logged to
@@ -51,11 +59,15 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   const [target] = await db.select({ id: profiles.id, email: profiles.email }).from(profiles).where(eq(profiles.id, id)).limit(1);
   if (!target) return json({ error: "User not found." }, 404);
 
-  await db.update(profiles).set({ plan: parsed.data.plan, planUpdatedAt: new Date() }).where(eq(profiles.id, id));
+  await db.update(profiles).set({
+    auditEntitlement: parsed.data.auditEntitlement,
+    auditCredits: parsed.data.auditCredits,
+    planUpdatedAt: new Date(),
+  }).where(eq(profiles.id, id));
   await db.insert(paymentRecords).values({
     userId: id,
     recordedByEmail: user.email,
-    plan: parsed.data.plan,
+    plan: parsed.data.auditEntitlement,
     amount: parsed.data.amount,
     currency: parsed.data.currency,
     method: parsed.data.method,
@@ -64,8 +76,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   });
   await logAdminAction(
     user.email, "set_plan", "user", id,
-    `${target.email} -> ${parsed.data.plan}${parsed.data.amount ? ` (${parsed.data.amount} ${parsed.data.currency || ""} via ${parsed.data.method || "unspecified"})` : ""}`,
+    `${target.email} -> ${parsed.data.auditEntitlement}, ${parsed.data.auditCredits} credits${parsed.data.amount ? ` (${parsed.data.amount} ${parsed.data.currency || ""} via ${parsed.data.method || "unspecified"})` : ""}`,
   );
 
-  return json({ ok: true, plan: parsed.data.plan }, 200);
+  return json({ ok: true, auditEntitlement: parsed.data.auditEntitlement, auditCredits: parsed.data.auditCredits }, 200);
 }

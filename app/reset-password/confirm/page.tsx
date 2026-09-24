@@ -1,8 +1,6 @@
 "use client";
 import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
 
@@ -67,17 +65,25 @@ export default function ResetPasswordConfirmPage() {
 
   return (
     <AuthShell title="Set a new password">
-      <form onSubmit={submit}>
-        <AuthField label="New password" htmlFor="ix-password">
-          <Input id="ix-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} maxLength={200} autoComplete="new-password" />
-        </AuthField>
-        <AuthField label="Confirm password" htmlFor="ix-confirm">
-          <Input id="ix-confirm" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required minLength={8} maxLength={200} autoComplete="new-password" />
-        </AuthField>
-        {error && <p role="alert" className="ix-auth-error">{error}</p>}
-        <Button type="submit" disabled={submitting} className="mt-2">{submitting ? "Updating…" : "Update password"}</Button>
+      <form className="ix-auth__form" onSubmit={submit} noValidate>
+        <div className="ix-auth__fields">
+          <AuthField label="New password" htmlFor="ix-password" help="At least 8 characters.">
+            <input id="ix-password" className="ix-input" type="password" value={password}
+              onChange={e => setPassword(e.target.value)} required minLength={8} maxLength={200} autoComplete="new-password" />
+          </AuthField>
+          <AuthField label="Confirm password" htmlFor="ix-confirm">
+            <input id="ix-confirm" className="ix-input" type="password" value={confirmPassword}
+              onChange={e => setConfirmPassword(e.target.value)} required minLength={8} maxLength={200} autoComplete="new-password" />
+          </AuthField>
+        </div>
+        {error && <p role="alert" className="ix-auth__error">{error}</p>}
+        <div className="ix-auth__actions">
+          <button type="submit" className="ix-btn ix-btn--primary" disabled={submitting}>
+            {submitting ? "Updating…" : "Update password"}
+          </button>
+        </div>
       </form>
-      <Link href="/login" className="ix-auth-links-center">Back to sign in</Link>
+      <p className="ix-auth__links"><Link href="/login">Back to sign in</Link></p>
     </AuthShell>
   );
 }
