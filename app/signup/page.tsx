@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
+import { EmailQuotaNotice, useEmailQuota } from "@/app/auth/email-quota";
 import { isDestination } from "@/lib/destination-shared";
 
 function SignupInner() {
@@ -21,18 +22,26 @@ function SignupInner() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
+  const [website, setWebsite] = useState(""); // honeypot — stays empty for real people
+  const quota = useEmailQuota();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (quota.locked) return;
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      setError("Your password needs at least one letter and one number.");
+      return;
+    }
     setSubmitting(true);
     try {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, mobile, upworkLink, email, password, destination }),
+        body: JSON.stringify({ fullName, mobile, upworkLink, email, password, destination, website }),
       });
-      const result = await response.json() as { error?: string; needsVerification?: boolean };
+      const result = await response.json() as { error?: string; code?: string; needsVerification?: boolean; quota?: null; retryAfterSeconds?: number };
+      quota.fromResponse(result);
       if (!response.ok) throw new Error(result.error || "Signup could not be completed.");
       setDone(true);
     } catch (cause) {
@@ -73,10 +82,16 @@ function SignupInner() {
         </AuthField>
         <AuthField label="Password" htmlFor="ix-password">
           <Input id="ix-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} maxLength={200} autoComplete="new-password" />
+          <span className="ix-auth-hint">At least 8 characters, including a letter and a number.</span>
         </AuthField>
-        {error && <p role="alert" className="ix-auth-error">{error}</p>}
-        <Button type="submit" disabled={submitting} className="mt-2">
-          {submitting ? "Creating account…" : "Create account"}
+        <div className="ix-auth-trap" aria-hidden="true">
+          <label htmlFor="ix-website">Website</label>
+          <input id="ix-website" name="website" tabIndex={-1} autoComplete="off" value={website} onChange={e => setWebsite(e.target.value)} />
+        </div>
+        <EmailQuotaNotice state={quota} />
+        {error && !quota.locked && <p role="alert" className="ix-auth-error">{error}</p>}
+        <Button type="submit" disabled={submitting || quota.locked} className="mt-2">
+          {submitting ? "Creating account…" : quota.locked ? `Try again in ${quota.clock}` : "Create account"}
         </Button>
       </form>
     </AuthShell>

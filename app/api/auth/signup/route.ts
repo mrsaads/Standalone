@@ -3,20 +3,25 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
 import { isTrustedOrigin, resolveAppOrigin } from "@/lib/http";
+import { authJson, guardAuthEmail } from "@/lib/security/auth-guard";
+import { refund } from "@/lib/security/email-throttle";
 
 const signupSchema = z.object({
   fullName: z.string().trim().min(2).max(120),
   mobile: z.string().trim().min(6).max(30),
   upworkLink: z.string().trim().max(300).optional().default(""),
-  email: z.string().trim().email().max(254),
-  password: z.string().min(8).max(200),
+  email: z.string().trim().toLowerCase().email().max(254),
+  password: z.string().min(8, "Use at least 8 characters for your password.").max(200)
+    .regex(/[A-Za-z]/, "Your password needs at least one letter.")
+    .regex(/[0-9]/, "Your password needs at least one number."),
+  // Honeypot: a field real visitors never see or fill. Bots that auto-fill every input do.
+  website: z.string().max(300).optional().default(""),
   // Which workspace card the visitor picked before signing up, if any (see lib/destination.ts).
   // Purely a routing hint stored on the new profile row — never a grant of client-portal access.
   destination: z.enum(["audit", "client_portal"]).optional(),
 });
 
-const responseHeaders = { "Cache-Control": "no-store" };
-const json = (body: unknown, status = 200) => Response.json(body, { status, headers: responseHeaders });
+const json = authJson;
 
 function isAdminEmail(email: string): boolean {
   const admins = (process.env.ADMIN_EMAILS || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
@@ -31,7 +36,15 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return json({ error: "The signup request could not be read." }, 400); }
   const parsed = signupSchema.safeParse(body);
   if (!parsed.success) return json({ error: parsed.error.issues[0]?.message || "Check your signup details." }, 400);
-  const { fullName, mobile, upworkLink, email, password, destination } = parsed.data;
+  const { fullName, mobile, upworkLink, email, password, destination, website } = parsed.data;
+
+  // Honeypot tripped: answer exactly like a real signup so the bot learns nothing, send nothing.
+  if (website) return json({ needsVerification: true });
+
+  // Per-browser (10 emails, then a 30-minute lock), per-network and per-recipient limits. Every
+  // signup sends a verification email, so every signup counts. See lib/security/email-throttle.ts.
+  const guard = await guardAuthEmail(request, email);
+  if (!guard.ok) return guard.response;
 
   const origin = resolveAppOrigin(request);
   const supabase = await createSupabaseServerClient();
@@ -43,8 +56,17 @@ export async function POST(request: Request) {
       emailRedirectTo: `${origin}/auth/callback?next=/`,
     },
   });
-  if (error) return json({ error: error.message }, error.status === 429 ? 429 : 400);
-  if (!data.user) return json({ error: "Signup could not be completed. Please try again." }, 500);
+  if (error) {
+    // Supabase refused before sending anything (bad input, its own rate limit) — don't charge
+    // this browser for an email that never went out.
+    await refund(guard.buckets).catch(() => {});
+    if (error.status === 429) return json({ error: "Our email service is busy right now. Please try again in a few minutes." }, 429);
+    return json({ error: error.message }, 400);
+  }
+  if (!data.user) {
+    await refund(guard.buckets).catch(() => {});
+    return json({ error: "Signup could not be completed. Please try again." }, 500);
+  }
 
   // Store the extended profile fields (mobile, Upwork link) immediately, keyed to the new
   // auth.users id. getDb() connects directly to Postgres (not through PostgREST), so this insert
@@ -73,5 +95,6 @@ export async function POST(request: Request) {
   }
 
   const needsVerification = !data.session;
-  return json({ needsVerification });
+  const quota = await guard.quotaAfter().catch(() => null);
+  return json({ needsVerification, quota });
 }

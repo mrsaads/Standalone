@@ -67,6 +67,11 @@ services:
         sync: false
       - key: RESEND_FROM_PROMOTIONAL
         sync: false
+      # Signs the per-browser cookie behind the 10-emails-per-browser rule (optional; falls back
+      # to a value derived from SUPABASE_SERVICE_ROLE_KEY). See .env.example for the other
+      # optional security knobs and their defaults.
+      - key: BROWSER_ID_SECRET
+        sync: false
       # APP_ORIGIN is NOT required here: Render sets RENDER_EXTERNAL_URL automatically on every
       # service, and lib/delivery-worker.ts falls back to it when building the "your audit is
       # ready" email's report link. Only set APP_ORIGIN by hand if serving from a custom domain

@@ -19,6 +19,10 @@
 // proxy to the public domain regardless of the internal scheme/port, so this
 // comparison is robust in a way `new URL(request.url).origin` is not.
 export function isTrustedOrigin(request: Request): boolean {
+  // Modern browsers label every request with where it came from. Anything a browser marks as
+  // cross-site or same-site-but-different-origin is refused outright, whatever Origin says.
+  const fetchSite = request.headers.get("sec-fetch-site");
+  if (fetchSite && fetchSite !== "same-origin" && fetchSite !== "none") return false;
   const origin = request.headers.get("origin");
   if (!origin) return true; // no Origin header: not a browser fetch/form POST, nothing to compare
   const host = request.headers.get("host");
@@ -44,4 +48,33 @@ export function resolveAppOrigin(request?: Request): string {
   const host = request?.headers.get("host");
   if (host) return `https://${host}`;
   throw new Error("Could not resolve the app's origin: set APP_ORIGIN or rely on Render's RENDER_EXTERNAL_URL.");
+}
+
+// Only ever redirect to a path on THIS site after an auth step. Rejects absolute URLs,
+// protocol-relative `//evil.com`, backslash tricks (`/\\evil.com`), `javascript:` and anything
+// that is not a plain "/path". Falls back to "/".
+export function safeNextPath(next: string | null | undefined, fallback = "/"): string {
+  if (!next || typeof next !== "string") return fallback;
+  if (!next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\") || /[\u0000-\u001f\\]/.test(next)) return fallback;
+  try {
+    const parsed = new URL(next, "https://ix.invalid");
+    if (parsed.origin !== "https://ix.invalid") return fallback;
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return fallback;
+  }
+}
+
+// The public origin for a browser navigation (GET) — built from the Host header Render's proxy
+// sets to the public domain, not from request.url (which reflects the container's internal
+// address; see the top of this file).
+export function requestOrigin(request: Request): string {
+  const configured = process.env.APP_ORIGIN;
+  if (configured) return configured.replace(/\/$/, "");
+  const host = request.headers.get("host");
+  if (host) {
+    const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || (host.startsWith("localhost") || host.startsWith("127.") ? "http" : "https");
+    return `${proto}://${host}`;
+  }
+  return new URL(request.url).origin;
 }

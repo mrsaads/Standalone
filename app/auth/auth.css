@@ -158,3 +158,19 @@
 @media (max-width: 520px) {
   .ix-auth-card { max-width: 100%; }
 }
+
+/* Per-browser email allowance + lock countdown (app/auth/email-quota.tsx). */
+.ix-auth-quota { font-size: 13px; color: var(--ix-auth-muted); margin: 4px 0 2px; }
+.ix-auth-quota-locked {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 14px 16px; margin: 6px 0 4px; border-radius: 10px;
+  border: 1px solid rgba(242, 117, 90, 0.35); background: rgba(242, 117, 90, 0.08);
+  color: var(--ix-auth-muted);
+}
+.ix-auth-quota-locked strong { color: var(--ix-auth-fg); font-size: 14px; }
+.ix-auth-quota-clock {
+  font-variant-numeric: tabular-nums; font-size: 28px; font-weight: 700; letter-spacing: 0.04em;
+  color: var(--ix-auth-danger);
+}
+.ix-auth-hint { font-size: 12px; color: var(--ix-auth-muted-2); margin-top: 4px; }
+.ix-auth-trap { position: absolute !important; left: -10000px !important; width: 1px; height: 1px; overflow: hidden; }

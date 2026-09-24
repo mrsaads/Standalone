@@ -444,3 +444,15 @@ export const announcementRecipients = pgTable("announcement_recipients", {
   uniqueIndex("uq_announcement_recipients_announcement_user").on(table.announcementId, table.userId),
   index("idx_announcement_recipients_email_status").on(table.emailStatus),
 ]).enableRLS();
+
+// Abuse limits for auth emails (signup verification, resend, password reset) and failed logins —
+// see lib/security/email-throttle.ts. One row per bucket, e.g. `email:browser:<browser id>`,
+// `email:ip:<hash>`, `email:recipient:<hash>`, `login:account:<hash>`. IPs and email addresses are
+// only ever stored as keyed hashes. Rows are tiny and self-cleaning (idle rows are deleted).
+export const authEmailThrottle = pgTable("auth_email_throttle", {
+  bucket: text("bucket").primaryKey(),
+  hits: integer("hits").notNull().default(0),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull().default(sql`now()`),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_auth_email_throttle_updated").on(table.updatedAt)]).enableRLS();

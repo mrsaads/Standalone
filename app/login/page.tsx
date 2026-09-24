@@ -4,8 +4,8 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
+import { useLockCountdown } from "@/app/auth/email-quota";
 import { isDestination } from "@/lib/destination-shared";
 
 // The path a signed-in visitor lands on after THIS login. When a workspace card sent them here
@@ -25,19 +25,31 @@ function LoginInner() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    const reason = params.get("reason");
+    if (reason === "idle") return "You were signed out after a period of inactivity. Please sign in again.";
+    if (reason === "expired") return "Your session has expired. Please sign in again.";
+    return "";
+  });
+  const lock = useLockCountdown();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (lock.locked) return;
     setSubmitting(true);
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) {
-        // Supabase returns a generic "Email not confirmed" error for unverified accounts —
-        // surface that distinctly since the fix (check your email) differs from a wrong password.
-        throw new Error(signInError.message);
+      // Signed in on the server (sets the session cookies there) so repeated wrong passwords can
+      // be locked out — see app/api/auth/login/route.ts.
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json() as { error?: string; code?: string; retryAfterSeconds?: number };
+      if (!response.ok) {
+        if (result.code === "LOGIN_LOCKED" && result.retryAfterSeconds) lock.lockFor(result.retryAfterSeconds);
+        throw new Error(result.error || "Sign in failed.");
       }
       // A hard navigation, not router.push()+router.refresh(): the App Router's client-side
       // navigation has been observed to silently no-op right after an auth cookie changes
@@ -66,8 +78,8 @@ function LoginInner() {
           <Input id="ix-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required autoComplete="current-password" />
         </AuthField>
         {error && <p role="alert" className="ix-auth-error">{error}</p>}
-        <Button type="submit" disabled={submitting} className="mt-2">
-          {submitting ? "Logging in…" : "Log In"}
+        <Button type="submit" disabled={submitting || lock.locked} className="mt-2">
+          {submitting ? "Logging in…" : lock.locked ? `Try again in ${lock.clock}` : "Log In"}
         </Button>
       </form>
       <p className="ix-auth-links">

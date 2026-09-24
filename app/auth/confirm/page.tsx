@@ -5,6 +5,7 @@ import type { EmailOtpType } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell } from "@/app/auth/auth-shell";
+import { safeNextPath } from "@/lib/http";
 
 // Why this page exists, instead of Supabase's email link going straight to
 // `/auth/v1/verify` (the default `{{ .ConfirmationURL }}` template): a bare GET link is exactly
@@ -28,7 +29,8 @@ function ConfirmInner() {
   const params = useSearchParams();
   const tokenHash = params.get("token_hash");
   const type = params.get("type") as EmailOtpType | null;
-  const next = params.get("next") || "/";
+  // Never trust `next` as-is: `javascript:` or an off-site URL here would run/redirect on click.
+  const next = safeNextPath(params.get("next"));
 
   const [state, setState] = useState<"idle" | "verifying" | "error">("idle");
   const [error, setError] = useState("");

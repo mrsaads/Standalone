@@ -3,25 +3,31 @@ import { useState, type FormEvent } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
+import { EmailQuotaNotice, useEmailQuota } from "@/app/auth/email-quota";
 
 export default function ResetPasswordRequestPage() {
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
+  const quota = useEmailQuota();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (quota.locked) return;
     setSubmitting(true);
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/auth/callback?next=/reset-password/confirm`,
+      // Through our server so reset emails count toward this browser's email limit.
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (resetError) throw new Error(resetError.message);
+      const result = await response.json() as { error?: string; code?: string };
+      quota.fromResponse(result);
+      if (!response.ok) throw new Error(result.error || "The reset link could not be sent.");
       setSent(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The reset link could not be sent.");
@@ -45,8 +51,9 @@ export default function ResetPasswordRequestPage() {
         <AuthField label="Email" htmlFor="ix-email">
           <Input id="ix-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required maxLength={254} autoComplete="email" placeholder="you@example.com" />
         </AuthField>
-        {error && <p role="alert" className="ix-auth-error">{error}</p>}
-        <Button type="submit" disabled={submitting} className="mt-2">{submitting ? "Sending…" : "Send reset link"}</Button>
+        <EmailQuotaNotice state={quota} />
+        {error && !quota.locked && <p role="alert" className="ix-auth-error">{error}</p>}
+        <Button type="submit" disabled={submitting || quota.locked} className="mt-2">{submitting ? "Sending…" : "Send reset link"}</Button>
       </form>
       <Link href="/login" className="ix-auth-links-center">Back to sign in</Link>
     </AuthShell>
