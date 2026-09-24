@@ -5,6 +5,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { entitlementFor, entitlementLabel } from "@/lib/entitlements";
 import { getAuditSummary, getOpenManagementEnquiry, getShellNav } from "@/lib/shell-data";
 import { AppShell, PageHead } from "./app-shell";
+import { LandingPage } from "./landing-page";
 import { RequestManagementButton } from "./request-management";
 
 export const dynamic = "force-dynamic";
@@ -23,9 +24,11 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   if (typeof openAudit === "string" && /^[0-9a-f-]{36}$/i.test(openAudit)) redirect(`/audits?openAudit=${openAudit}`);
 
   const user = await getCurrentUser();
-  // middleware.ts already gates this route; this is the second, independent check, so the page is
-  // still correct if the matcher is ever changed.
-  if (!user) redirect("/login");
+  // Signed out: show the public marketing landing page. "/" is a public path in middleware.ts, so
+  // a visitor genuinely reaches this branch rather than being bounced — an earlier revision
+  // redirected to /login here, which left the landing page built but unreachable and made the
+  // product look like it had no front door at all.
+  if (!user) return <LandingPage />;
 
   const entitlement = entitlementFor(user);
   const { nav, workspaces } = await getShellNav(user);
