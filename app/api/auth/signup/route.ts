@@ -16,9 +16,6 @@ const signupSchema = z.object({
     .regex(/[0-9]/, "Your password needs at least one number."),
   // Honeypot: a field real visitors never see or fill. Bots that auto-fill every input do.
   website: z.string().max(300).optional().default(""),
-  // Which workspace card the visitor picked before signing up, if any (see lib/destination.ts).
-  // Purely a routing hint stored on the new profile row — never a grant of client-portal access.
-  destination: z.enum(["audit", "client_portal"]).optional(),
 });
 
 const json = authJson;
@@ -36,7 +33,7 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return json({ error: "The signup request could not be read." }, 400); }
   const parsed = signupSchema.safeParse(body);
   if (!parsed.success) return json({ error: parsed.error.issues[0]?.message || "Check your signup details." }, 400);
-  const { fullName, mobile, upworkLink, email, password, destination, website } = parsed.data;
+  const { fullName, mobile, upworkLink, email, password, website } = parsed.data;
 
   // Honeypot tripped: answer exactly like a real signup so the bot learns nothing, send nothing.
   if (website) return json({ needsVerification: true });
@@ -81,7 +78,6 @@ export async function POST(request: Request) {
       mobile,
       upworkLink,
       role: isAdminEmail(email) ? "admin" : "base",
-      preferredDestination: destination ?? "",
     }).onConflictDoUpdate({
       target: profiles.id,
       set: { fullName, mobile, upworkLink },

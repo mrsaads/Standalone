@@ -583,3 +583,33 @@ export const deliveryJobs = pgTable("delivery_jobs", {
   uniqueIndex("uq_delivery_jobs_subject_kind").on(table.subjectType, table.subjectId, table.kind),
   index("idx_delivery_jobs_claimable").on(table.status, table.nextAttemptAt),
 ]).enableRLS();
+
+// Public landing-page / access-request leads (app/api/leads, lib/leads.ts). Restored after the
+// managed-clients rewrite dropped it from this file while the live table (with real rows) and the
+// code that writes to it both still exist.
+export const leads = pgTable("leads", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  profileLink: text("profile_link").notNull().default(""),
+  goals: text("goals").notNull().default(""),
+  source: text("source").notNull(), // "landing_audit" | "landing_client_portal" | "landing_general" | "client_portal_access_request"
+  userId: uuid("user_id"), // set only for a signed-in user's access-request submission
+  status: text("status").notNull().default("new"), // "new" | "reviewed" | "actioned"
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [
+  index("idx_leads_email_created").on(table.email, table.createdAt),
+  index("idx_leads_status").on(table.status),
+]).enableRLS();
+
+// Abuse limits for auth emails (signup verification, resend, password reset) and failed logins —
+// see lib/security/email-throttle.ts. One row per bucket, e.g. `email:browser:<browser id>`,
+// `email:ip:<hash>`, `email:recipient:<hash>`, `login:account:<hash>`. IPs and email addresses are
+// only ever stored as keyed hashes. Rows are tiny and self-cleaning (idle rows are deleted).
+export const authEmailThrottle = pgTable("auth_email_throttle", {
+  bucket: text("bucket").primaryKey(),
+  hits: integer("hits").notNull().default(0),
+  windowStartedAt: timestamp("window_started_at", { withTimezone: true }).notNull().default(sql`now()`),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [index("idx_auth_email_throttle_updated").on(table.updatedAt)]).enableRLS();

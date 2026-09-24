@@ -213,7 +213,7 @@ async function main() {
   // entirely in Postgres, with no AI call anywhere in this section.
   section("I. Admin-granted bonusAuditCredits: spent only after the weekly slot is used, refunded on failure");
   await resetAuditsForUser();
-  await db.update(profiles).set({ bonusAuditCredits: 0 }).where(eq(profiles.id, userId));
+  await db.update(profiles).set({ auditCredits: 0, auditCreditsUsed: 0 }).where(eq(profiles.id, userId));
   {
     // I1: with zero bonus credits, a second request within the week is still correctly blocked.
     const first = await reserveAuditSlot(user, "profile-i1", "hash-i1", "");
@@ -225,11 +225,11 @@ async function main() {
 
     // I2: grant 1 bonus credit — the next reservation (still within the same week) is now admitted,
     // spending the credit rather than the (already-used) weekly slot.
-    await db.update(profiles).set({ bonusAuditCredits: 1 }).where(eq(profiles.id, userId));
+    await db.update(profiles).set({ auditCredits: 1, auditCreditsUsed: 0 }).where(eq(profiles.id, userId));
     const second = await reserveAuditSlot(user, "profile-i2", "hash-i2", "");
-    const [afterSpend] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    const [afterSpend] = await db.select({ bonusAuditCredits: sql<number>`${profiles.auditCredits} - ${profiles.auditCreditsUsed}`.mapWith(Number) }).from(profiles).where(eq(profiles.id, userId));
     assert(afterSpend?.bonusAuditCredits === 0, `granting 1 bonus credit admits the next reservation and spends it (bonusAuditCredits now ${afterSpend?.bonusAuditCredits})`);
-    const [secondRow] = await db.select({ usedBonusCredit: profileAudits.usedBonusCredit }).from(profileAudits).where(eq(profileAudits.id, second.auditId));
+    const [secondRow] = await db.select({ usedBonusCredit: profileAudits.creditSpent }).from(profileAudits).where(eq(profileAudits.id, second.auditId));
     assert(secondRow?.usedBonusCredit === true, "the reservation row itself is marked usedBonusCredit=true");
 
     // I3: a third attempt is blocked again — the credit was a one-time grant, not unlimited.
@@ -241,13 +241,13 @@ async function main() {
     // I4: the spent credit is refunded if that generation then fails — a failed AI call must never
     // permanently cost the account a credit any more than it costs them the weekly slot.
     await releaseReservation(second.auditId, second.leaseToken);
-    const [afterRefund] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    const [afterRefund] = await db.select({ bonusAuditCredits: sql<number>`${profiles.auditCredits} - ${profiles.auditCreditsUsed}`.mapWith(Number) }).from(profiles).where(eq(profiles.id, userId));
     assert(afterRefund?.bonusAuditCredits === 1, `a failed generation refunds the spent bonus credit (bonusAuditCredits now ${afterRefund?.bonusAuditCredits})`);
 
     // I5: releasing a reservation that did NOT use a bonus credit must never touch the balance.
     const third = await reserveAuditSlot(user, "profile-i5", "hash-i5", ""); // spends the refunded credit again (weekly slot still used from I1/I2)
     await completeReservation(third.auditId, third.leaseToken, { profileName: "I5", reportJson: "{}", score: 10, passCount: 1, weakCount: 0, failCount: 0, provider: "test" });
-    const [afterI5] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    const [afterI5] = await db.select({ bonusAuditCredits: sql<number>`${profiles.auditCredits} - ${profiles.auditCreditsUsed}`.mapWith(Number) }).from(profiles).where(eq(profiles.id, userId));
     assert(afterI5?.bonusAuditCredits === 0, `a completed (non-released) bonus-credit reservation leaves the balance spent, not refunded (bonusAuditCredits now ${afterI5?.bonusAuditCredits})`);
   }
 

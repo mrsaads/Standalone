@@ -16,7 +16,12 @@ export const dynamic = "force-dynamic";
 // A server component on purpose. Entitlement and managed-client membership are resolved here,
 // server-side, from the database — the browser is never asked what it is allowed to see, and the
 // routes behind each card enforce the same rules independently.
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  // Audit-ready emails sent before the redesign link to "/?openAudit=<id>"; the report now lives
+  // under /audits, so forward those links rather than dropping the reader on the dashboard.
+  const { openAudit } = await searchParams;
+  if (typeof openAudit === "string" && /^[0-9a-f-]{36}$/i.test(openAudit)) redirect(`/audits?openAudit=${openAudit}`);
+
   const user = await getCurrentUser();
   // middleware.ts already gates this route; this is the second, independent check, so the page is
   // still correct if the matcher is ever changed.

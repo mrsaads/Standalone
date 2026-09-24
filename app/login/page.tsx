@@ -1,26 +1,40 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { Suspense, useState, type FormEvent } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
+import { useLockCountdown } from "@/app/auth/email-quota";
 
-export default function LoginPage() {
+function LoginInner() {
+  const params = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => {
+    const reason = params.get("reason");
+    if (reason === "idle") return "You were signed out after a period of inactivity. Please sign in again.";
+    if (reason === "expired") return "Your session has expired. Please sign in again.";
+    return params.get("error") ?? "";
+  });
+  const lock = useLockCountdown();
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     setError("");
+    if (lock.locked) return;
     setSubmitting(true);
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-      if (signInError) {
-        // Supabase returns a distinct "Email not confirmed" error for unverified accounts —
-        // surfaced as-is, since the fix (check your email) differs from a wrong password.
-        throw new Error(signInError.message);
+      // Signed in on the server (which sets the session cookies) so repeated wrong passwords can
+      // be locked out — see app/api/auth/login/route.ts.
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const result = await response.json() as { error?: string; code?: string; retryAfterSeconds?: number };
+      if (!response.ok) {
+        if (result.code === "LOGIN_LOCKED" && result.retryAfterSeconds) lock.lockFor(result.retryAfterSeconds);
+        throw new Error(result.error || "Sign in failed.");
       }
       // A hard navigation, not router.push()+router.refresh(): the App Router's client-side
       // navigation has been observed to silently no-op right after an auth cookie changes out from
@@ -76,8 +90,8 @@ export default function LoginPage() {
         {error && <p role="alert" className="ix-auth__error">{error}</p>}
 
         <div className="ix-auth__actions">
-          <button type="submit" className="ix-btn ix-btn--primary" disabled={submitting}>
-            {submitting ? "Signing in…" : "Sign in"}
+          <button type="submit" className="ix-btn ix-btn--primary" disabled={submitting || lock.locked}>
+            {submitting ? "Signing in…" : lock.locked ? `Try again in ${lock.clock}` : "Sign in"}
           </button>
         </div>
       </form>
@@ -88,5 +102,14 @@ export default function LoginPage() {
         <span>Didn&apos;t get the verification email? <Link href="/verify">Resend it</Link></span>
       </p>
     </AuthShell>
+  );
+}
+
+// useSearchParams() needs a Suspense boundary for this page to prerender.
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<AuthShell title="Sign in to Improvexus">{null}</AuthShell>}>
+      <LoginInner />
+    </Suspense>
   );
 }

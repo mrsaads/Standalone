@@ -1,8 +1,8 @@
 "use client";
 import { useState } from "react";
 import Link from "next/link";
-import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
+import { EmailQuotaNotice, useEmailQuota } from "@/app/auth/email-quota";
 
 // Landing page for someone who signed up but hasn't clicked the verification link yet (e.g. they
 // tried to sign in and got Supabase's "Email not confirmed" error, or navigated here directly).
@@ -12,18 +12,22 @@ export default function VerifyPage() {
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState("");
+  const quota = useEmailQuota();
 
   async function resend() {
     setError("");
+    if (quota.locked) return;
     setSending(true);
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { error: resendError } = await supabase.auth.resend({
-        type: "signup",
-        email,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback?next=/` },
+      // Through our server, not straight to Supabase, so the per-browser email limit applies.
+      const response = await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
       });
-      if (resendError) throw new Error(resendError.message);
+      const result = await response.json() as { error?: string; code?: string };
+      quota.fromResponse(result);
+      if (!response.ok) throw new Error(result.error || "The verification email could not be resent.");
       setSent(true);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "The verification email could not be resent.");
@@ -41,12 +45,13 @@ export default function VerifyPage() {
               maxLength={254} autoComplete="email" placeholder="you@example.com" />
           </AuthField>
         </div>
-        {error && <p role="alert" className="ix-auth__error">{error}</p>}
+        <EmailQuotaNotice state={quota} />
+        {error && !quota.locked && <p role="alert" className="ix-auth__error">{error}</p>}
         {sent ? (
           <p role="status" className="ix-auth__success">If that account needs verifying, a new link is on its way.</p>
         ) : (
           <div className="ix-auth__actions">
-            <button type="button" className="ix-btn ix-btn--primary" disabled={sending || !email} onClick={resend}>
+            <button type="button" className="ix-btn ix-btn--primary" disabled={sending || !email || quota.locked} onClick={resend}>
               {sending ? "Sending…" : "Resend verification email"}
             </button>
           </div>

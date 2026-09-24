@@ -95,3 +95,17 @@
   .ix-auth__row { grid-template-columns: 1fr; }
   .ix-btn--primary { width: 100%; }
 }
+
+/* Per-browser email allowance + lock countdown (app/auth/email-quota.tsx). */
+.ix-auth-quota { font-size: 13px; color: var(--ix-muted); }
+.ix-auth-quota-locked {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+  padding: 14px 16px; border: 1px solid var(--ix-danger); border-radius: var(--ix-radius);
+  background: rgba(255, 128, 128, 0.06); color: var(--ix-muted); font-size: 14px; line-height: 1.5;
+}
+.ix-auth-quota-locked strong { color: var(--ix-heading); font-weight: 500; }
+.ix-auth-quota-clock {
+  font-family: var(--ix-mono); font-variant-numeric: tabular-nums; font-size: 28px; font-weight: 600;
+  letter-spacing: 0.04em; color: var(--ix-danger);
+}
+.ix-auth-trap { position: absolute !important; left: -10000px !important; width: 1px; height: 1px; overflow: hidden; }

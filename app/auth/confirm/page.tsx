@@ -1,6 +1,7 @@
 "use client";
 import { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import { safeNextPath } from "@/lib/http";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabaseBrowserClient } from "@/lib/supabase/client";
 import { AuthShell } from "@/app/auth/auth-shell";
@@ -27,7 +28,8 @@ function ConfirmInner() {
   const params = useSearchParams();
   const tokenHash = params.get("token_hash");
   const type = params.get("type") as EmailOtpType | null;
-  const next = params.get("next") || "/";
+  // Never trust `next` as-is: `javascript:` or an off-site URL here would run/redirect on click.
+  const next = safeNextPath(params.get("next"));
 
   const [state, setState] = useState<"idle" | "verifying" | "error">("idle");
   const [error, setError] = useState("");

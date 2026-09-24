@@ -33,8 +33,29 @@
     {
       "idx": 4,
       "version": "7",
-      "when": 1790246210290,
-      "tag": "0004_managed_clients_and_notifications",
+      "when": 1790027363598,
+      "tag": "0004_cloudy_unicorn",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790027418781,
+      "tag": "0005_military_trish_tilby",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790245800000,
+      "tag": "0006_auth_email_throttle",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790249000000,
+      "tag": "0007_reconcile_live_schema",
       "breakpoints": true
     }
   ]
