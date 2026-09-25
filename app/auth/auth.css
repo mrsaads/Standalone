@@ -1,19 +1,26 @@
 /* Auth screens (login, signup, password reset, verify, confirm).
    ---------------------------------------------------------------------------------------------
-   Same black/charcoal visual language as the public landing page (app/landing.css) and reusing the
-   same rotating cube (app/auth/auth-cube.tsx), so signing in feels like the same product as the
-   page you arrived from. The tokens below are the ones landing.css already defines for itself,
-   repeated here rather than imported so neither file can silently restyle the other.
+   Composition follows the supplied reference: one CENTRED column on a black page, the brand mark
+   at the top of that column, heading and subtitle centred under it, left-aligned field labels
+   inside the card, a full-width primary button, and small centred helper links below. Two large,
+   very soft light washes sit in the top-right and bottom-left corners — that ambient corner light
+   is the part of the reference that does most of the work, and a flat black page without it reads
+   as unfinished rather than minimal.
 
-   SCOPED ON PURPOSE. Everything is nested under `.ix-auth`, following the same rule landing.css
-   follows: these screens have their own look, and nothing here may leak into the authenticated app
-   (dashboard, portal, admin), which keeps the design-system defaults from app/design-system.css.
-   That is why the overrides below re-declare .ix-input / .ix-btn / .ix-title rather than editing
-   design-system.css — those primitives are shared with screens that are NOT being restyled.
+   The rotating cube (app/auth/auth-cube.tsx) stays, because it is ours and it is what ties these
+   screens to the landing hero — but a centred layout has no side column to put it in, so it takes
+   the role the reference gives its corner artwork: large, dimmed, top-right, behind the card and
+   never competing with it.
 
-   The markup and class names are unchanged from what the pages already use, so the server-side
-   login, the 10-email throttle and its countdown keep working exactly as they are; this file
-   changes appearance only. */
+   SCOPED ON PURPOSE. Everything is nested under `.ix-auth`, the same rule app/landing.css follows:
+   these screens have their own look and nothing here may leak into the authenticated app
+   (dashboard, portal, admin), which keeps the defaults from app/design-system.css. That is why the
+   rules below re-declare .ix-input / .ix-btn / .ix-title rather than editing design-system.css —
+   those primitives are shared with screens that are NOT being restyled.
+
+   Markup and class names are unchanged from what the pages already use, so the server-side login,
+   the 10-email throttle and its countdown keep working exactly as they are. This file changes
+   appearance only. */
 
 .ix-auth {
   --ix-a-bg: #060607;
@@ -26,148 +33,151 @@
   --ix-a-danger: #f2755a;
   --ix-a-positive: #6ee7a8;
 
-  position: relative;            /* the cube stage positions itself against this */
+  position: relative;            /* the cube stage and the corner light position against this */
   min-height: 100dvh;
   background: var(--ix-a-bg);
   color: var(--ix-a-fg);
-  overflow-x: hidden;
+  overflow: hidden;              /* the corner washes bleed past the edges by design */
   display: flex;
   flex-direction: column;
 }
 
-/* ---------- Top bar: same proportions as the landing nav ---------- */
-.ix-auth__bar {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 32px;
-  background: rgba(6, 6, 7, 0.82);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid var(--ix-a-border);
+/* A faint vignette under the artwork, so the page reads as lit rather than as flat black at the
+   edges. The shaped light itself is the SVG in auth-wave.tsx, layered above this. */
+.ix-auth::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background: radial-gradient(1100px 760px at 78% 2%, rgba(255, 255, 255, 0.05), transparent 65%);
 }
 
-.ix-auth .ix-wordmark {
+/* ---------- Top bar: just the way back, as in the reference ---------- */
+.ix-auth__bar {
+  position: relative;
+  z-index: 2;
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 16px;
+  padding: 22px 28px;
+}
+
+.ix-auth__bar-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ix-a-fg);
+  text-decoration: none;
+}
+.ix-auth__bar-link:hover { color: var(--ix-a-muted); }
+.ix-auth__bar-link::before {
+  content: "‹";
+  font-size: 17px;
+  line-height: 1;
+  color: var(--ix-a-muted);
+}
+
+/* ---------- Body: one centred column ---------- */
+.ix-auth__body {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 40px 24px 80px;
+}
+
+.ix-auth__col {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  text-align: center;            /* headings, links and terms centre; fields opt out below */
+}
+
+/* The brand mark, centred above the heading — the reference's logo tile. */
+.ix-auth .ix-wordmark {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
   text-decoration: none;
   color: var(--ix-a-fg);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
+  /* The wordmark text itself is hidden here: the reference shows the mark alone above the title,
+     and the title already says "Improvexus". Kept in the DOM for the accessible name. */
+  font-size: 0;
 }
-/* The same soft-cornered mark the landing nav uses, so the two headers read as one product. */
 .ix-auth .ix-wordmark__mark {
-  width: 32px;
-  height: 32px;
+  width: 48px;
+  height: 48px;
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 9px;
+  border-radius: 14px;
   background: linear-gradient(155deg, #232326, #0b0b0d);
   border: 1px solid var(--ix-a-border);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   /* design-system.css gives this a diagonal clip-path for the square-cornered theme; the rounded
-     landing mark must not inherit it. */
+     mark must not inherit it. */
   clip-path: none;
-  font-size: 14px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: 0;
 }
-.ix-auth__bar-link {
-  font-size: 13.5px;
-  font-weight: 600;
-  color: var(--ix-a-muted);
-  text-decoration: none;
-  padding: 9px 16px;
-  border-radius: 999px;
-}
-.ix-auth__bar-link:hover { color: var(--ix-a-fg); }
 
-/* ---------- Body: form on the left, cube on the right ---------- */
-.ix-auth__body {
-  position: relative;
-  flex: 1;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 72px 32px 80px;
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
-  align-items: center;
-  gap: 24px;
-}
-
-.ix-auth__col {
-  position: relative;
-  z-index: 1;                    /* above the decorative cube, always */
-  width: 100%;
-  max-width: 460px;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-}
-
-/* The slot the cube lives in. auth-cube.css positions .ix-cube-stage absolutely against the
-   nearest positioned ancestor and hides itself below 900px on its own, so this only has to reserve
-   the space and stay out of the way. */
-.ix-auth__art {
-  position: relative;
-  height: 420px;
-  pointer-events: none;
-}
-
-.ix-auth__heading { display: flex; flex-direction: column; gap: 10px; }
+.ix-auth__heading { display: flex; flex-direction: column; gap: 8px; align-items: center; }
 
 .ix-auth .ix-title {
-  font-size: clamp(28px, 3.2vw, 38px);
-  line-height: 1.1;
+  font-size: 28px;
+  line-height: 1.2;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--ix-a-fg);
   margin: 0;
 }
 .ix-auth .ix-subtitle {
-  font-size: 15px;
-  line-height: 1.6;
+  font-size: 14.5px;
+  line-height: 1.55;
   color: var(--ix-a-muted);
   margin: 0;
-  max-width: 44ch;
+  max-width: 38ch;
 }
 .ix-auth .ix-subtitle a { color: var(--ix-a-fg); font-weight: 600; text-decoration: none; }
 .ix-auth .ix-subtitle a:hover { text-decoration: underline; text-underline-offset: 2px; }
 .ix-auth .ix-subtitle strong { color: var(--ix-a-fg); font-weight: 600; }
 
-.ix-auth__form { display: flex; flex-direction: column; gap: 18px; }
-.ix-auth__fields { display: flex; flex-direction: column; gap: 16px; }
-.ix-auth__row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.ix-auth__form { display: flex; flex-direction: column; gap: 16px; }
+.ix-auth__fields { display: flex; flex-direction: column; gap: 14px; }
+.ix-auth__row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 
-/* ---------- Controls: rounded, soft-filled — the earlier treatment ---------- */
-.ix-auth .ix-field { display: flex; flex-direction: column; gap: 7px; }
+/* ---------- Controls ----------
+   Labels and inputs are left-aligned inside the centred column, exactly as in the reference — a
+   centred label above a full-width input reads as decoration rather than as a form. */
+.ix-auth .ix-field { display: flex; flex-direction: column; gap: 7px; text-align: left; }
 .ix-auth .ix-field > label,
 .ix-auth .ix-label {
   font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0;
   color: var(--ix-a-fg);
 }
 
 .ix-auth .ix-input,
 .ix-auth .ix-textarea {
   width: 100%;
-  height: 44px;
-  padding: 11px 14px;
+  height: 46px;
+  padding: 12px 14px;
   font-size: 14.5px;
   line-height: 20px;
   color: var(--ix-a-fg);
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--ix-a-border);
-  border-radius: 12px;
+  border-radius: 10px;
   outline: none;
   transition: border-color .15s ease, background-color .15s ease;
 }
@@ -184,39 +194,39 @@
   outline: none;
 }
 .ix-auth .ix-input[aria-invalid="true"] { border-color: rgba(242, 117, 90, 0.55); }
-.ix-auth .ix-field-help { font-size: 12.5px; line-height: 1.5; color: var(--ix-a-muted); }
+.ix-auth .ix-field-help { font-size: 12.5px; line-height: 1.5; color: var(--ix-a-muted); text-align: left; }
 
-/* ---------- Buttons: the landing page's solid pill ---------- */
-.ix-auth__actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+/* ---------- Buttons: full width, as in the reference ---------- */
+.ix-auth__actions { display: flex; flex-direction: column; gap: 10px; }
 
 .ix-auth .ix-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 999px;
+  width: 100%;
+  border-radius: 10px;
   border: 1px solid transparent;
   font: inherit;
   cursor: pointer;
   text-decoration: none;
   white-space: nowrap;
-  transition: transform .15s ease, background-color .15s ease, color .15s ease;
+  transition: background-color .15s ease, color .15s ease, opacity .15s ease;
 }
-.ix-auth .ix-btn:disabled { cursor: default; opacity: .55; transform: none; }
+.ix-auth .ix-btn:disabled { cursor: default; opacity: .5; }
 
 .ix-auth .ix-btn--primary {
   height: 46px;
-  padding: 0 24px;
+  padding: 0 20px;
   font-size: 14.5px;
   font-weight: 700;
   color: #0b0b0d;
   background: linear-gradient(180deg, #f5f5f6, #e4e4e6);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
 }
-.ix-auth .ix-btn--primary:hover:not(:disabled) { transform: translateY(-1px); }
+.ix-auth .ix-btn--primary:hover:not(:disabled) { background: #ffffff; }
 
 .ix-auth .ix-btn--secondary {
-  height: 44px;
+  height: 46px;
   padding: 0 20px;
   font-size: 14px;
   font-weight: 600;
@@ -228,6 +238,7 @@
 
 .ix-auth .ix-btn--quiet {
   height: 40px;
+  width: auto;
   padding: 0 8px;
   font-size: 14px;
   color: var(--ix-a-muted);
@@ -240,8 +251,9 @@
 .ix-auth__success {
   font-size: 13.5px;
   line-height: 1.55;
+  text-align: left;
   padding: 11px 14px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid;
 }
 .ix-auth__error { color: #ffd4c8; background: rgba(242, 117, 90, 0.09); border-color: rgba(242, 117, 90, 0.35); }
@@ -250,7 +262,8 @@
 .ix-auth__links {
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  align-items: center;
+  gap: 8px;
   font-size: 13.5px;
   color: var(--ix-a-muted);
 }
@@ -261,37 +274,50 @@
   font-size: 12px;
   line-height: 1.55;
   color: var(--ix-a-muted-2);
-  max-width: 46ch;
+  max-width: 40ch;
+  margin-inline: auto;
 }
 
 .ix-auth :focus-visible { outline: 2px solid rgba(255, 255, 255, 0.55); outline-offset: 2px; }
 
-/* ---------- Responsive ----------
-   At 900px the cube hides itself (auth-cube.css), so the art column is dropped here at the same
-   breakpoint and the form takes the full width — no empty 420px gap left behind. */
+/* ---------- The wave: ambient background artwork ----------
+   Full-bleed layer behind the card. The SVG itself crops like a cover image (see auth-wave.tsx),
+   so it needs nothing here beyond being stretched across the page and taken out of hit testing. */
+.ix-auth__art {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.ix-auth-wave {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- Responsive ---------- */
 @media (max-width: 900px) {
-  .ix-auth__body {
-    grid-template-columns: 1fr;
-    padding: 48px 24px 64px;
-  }
-  .ix-auth__art { display: none; }
-  .ix-auth__col { max-width: 520px; }
+  /* The wave stays on small screens — it crops to the viewport rather than shrinking, so the
+     corner light still lands and the page never goes flat black on a phone. */
+  .ix-auth__body { padding: 24px 20px 64px; }
 }
 
 @media (max-width: 640px) {
-  .ix-auth__bar { padding: 14px 18px; }
-  .ix-auth__body { padding: 32px 18px 56px; }
+  .ix-auth__bar { padding: 16px 18px; }
+  .ix-auth__body { padding: 16px 18px 56px; }
+  .ix-auth__col { max-width: 100%; gap: 18px; }
   .ix-auth__row { grid-template-columns: 1fr; }
-  .ix-auth .ix-btn--primary { width: 100%; }
-  .ix-auth__actions { width: 100%; }
+  .ix-auth .ix-title { font-size: 25px; }
 }
 
 /* ---------- Pieces owned by the security work, restyled but never rewired ----------
-   These two class names come from the throttle/anti-spam pass (app/signup/page.tsx and
+   These class names come from the throttle/anti-spam pass (app/signup/page.tsx and
    app/auth/email-quota.tsx). They MUST keep their behaviour; only their appearance is set here.
-   Losing either rule is a real bug, not a cosmetic one, which is why they live together with a
-   note: without .ix-auth-trap the honeypot becomes a visible "Website" field that both looks
-   broken and stops trapping anything. */
+   Losing either rule is a real bug, not a cosmetic one: without .ix-auth-trap the honeypot becomes
+   a visible "Website" field that both looks broken and stops trapping anything. */
 
 /* Honeypot. Off-screen rather than display:none — it stays in the DOM and reachable to a bot that
    fills every input, which is the entire point, while never being visible or focusable by hand
@@ -309,9 +335,10 @@
 .ix-auth-quota {
   font-size: 13.5px;
   line-height: 1.55;
+  text-align: left;
   color: var(--ix-a-muted);
   padding: 11px 14px;
-  border-radius: 12px;
+  border-radius: 10px;
   border: 1px solid var(--ix-a-border);
   background: var(--ix-a-surface);
 }

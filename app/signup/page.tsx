@@ -53,7 +53,12 @@ export default function SignupPage() {
           Open it to finish creating your account — you choose your own password, and nobody at
           Improvexus can see it.
         </p>
-        <p className="ix-auth__links"><Link href="/login">Back to sign in</Link></p>
+        {/* The resend lives HERE rather than on the sign-in page: this is the one moment where
+            somebody genuinely has a missing verification email and nothing else to do about it. */}
+        <p className="ix-auth__links">
+          <span>Didn&apos;t get it? <Link href="/verify">Resend the verification email</Link></span>
+          <span><Link href="/login">Back to sign in</Link></span>
+        </p>
       </AuthShell>
     );
   }

@@ -96,10 +96,15 @@ function LoginInner() {
         </div>
       </form>
 
+      {/* No "resend verification" link here on purpose. Someone signing in either has a verified
+          account or gets Supabase's "Email not confirmed" error, which already tells them what to
+          do; offering a resend to everyone puts an email-sending action in front of people who
+          have no reason for it and eats into the per-browser email budget. The resend lives where
+          it is actually needed — on the "check your email" screen right after signing up (see
+          app/signup/page.tsx) and at /verify. */}
       <p className="ix-auth__links">
         <span>Need an account? <Link href="/signup">Create one</Link></span>
         <span>Forgot your password? <Link href="/reset-password">Reset it</Link></span>
-        <span>Didn&apos;t get the verification email? <Link href="/verify">Resend it</Link></span>
       </p>
     </AuthShell>
   );
