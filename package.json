@@ -17,7 +17,9 @@
     "test:local:restart": "tsx scripts/local-tests/restart-recovery.local-test.mts",
     "test:local:drive-dedup": "tsx scripts/local-tests/drive-dedup.local-test.mts",
     "test:local:isolation": "tsx scripts/local-tests/workspace-isolation.local-test.mts",
-    "test:local:auth-throttle": "tsx scripts/local-tests/auth-throttle.local-test.mts"
+    "test:local:auth-throttle": "tsx scripts/local-tests/auth-throttle.local-test.mts",
+    "test:local:admin-panel": "tsx scripts/local-tests/admin-panel.local-test.mts",
+    "seed:local-demo": "tsx scripts/seed-local-demo.mts"
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",

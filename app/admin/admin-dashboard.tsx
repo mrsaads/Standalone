@@ -11,6 +11,10 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import type { AdminLeadRow, AdminManagementEnquiryRow } from "@/lib/admin-inbox-shared";
+import type { AnnouncementListRow } from "@/lib/announcement-shared";
+import { AdminInbox } from "./inbox-cards";
+import { AnnouncementComposer } from "./announcement-composer";
 
 type UserRow = {
   id: string; email: string; fullName: string; mobile: string; upworkLink: string; role: string;
@@ -37,7 +41,21 @@ const paymentMethods = [
   { value: "other", label: "Other" },
 ];
 
-export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { adminEmail: string; users: UserRow[]; audits: AuditRow[] }) {
+export function AdminDashboard({
+  adminEmail,
+  users: initialUsers,
+  audits,
+  leads,
+  managementEnquiries,
+  announcements,
+}: {
+  adminEmail: string;
+  users: UserRow[];
+  audits: AuditRow[];
+  leads: AdminLeadRow[];
+  managementEnquiries: AdminManagementEnquiryRow[];
+  announcements: AnnouncementListRow[];
+}) {
   const params = useSearchParams();
   const driveParam = params.get("drive");
   const [drive, setDrive] = useState<DriveStatus | null>(null);
@@ -127,7 +145,7 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <main className="mx-auto max-w-6xl px-6 py-10">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Improvexus admin</h1>
@@ -161,6 +179,26 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
         </CardContent>
       </Card>
 
+      {/* Managed-client administration lives on its own page: creating a client, granting and
+          revoking portal access, and writing and publishing weekly reports is a workflow, not a
+          widget, and it does not belong wedged between two tables. */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Client portals</CardTitle>
+          <CardDescription>
+            Managed profile-management clients — onboard a client, grant or revoke portal access against a
+            verified account, add their Upwork profiles, and write and publish their weekly reports.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild><a href="/admin/clients">Open client portal management</a></Button>
+        </CardContent>
+      </Card>
+
+      <AnnouncementComposer initial={announcements} />
+
+      <AdminInbox leads={leads} managementEnquiries={managementEnquiries} />
+
       <Card className="mb-8">
         <CardHeader>
           <CardTitle>Subscriptions &amp; payments</CardTitle>
@@ -181,7 +219,7 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
       <Card className="mb-8">
         <CardHeader><CardTitle>Users ({users.length})</CardTitle></CardHeader>
         <CardContent>
-          <Table>
+          <Table className="min-w-max">
             <TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Name</TableHead><TableHead>Mobile</TableHead><TableHead>Role</TableHead><TableHead>Plan</TableHead><TableHead>Verified</TableHead><TableHead>Last sign-in</TableHead><TableHead>Audits</TableHead><TableHead>Joined</TableHead><TableHead>Subscription</TableHead></TableRow></TableHeader>
             <TableBody>
               {users.map(u => (
@@ -211,7 +249,7 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
         </CardHeader>
         <CardContent>
           {loadingOpt ? <p className="text-sm text-neutral-500">Loading…</p> : optRequests.length === 0 ? <p className="text-sm text-neutral-500">No requests yet.</p> : (
-            <Table>
+            <Table className="min-w-max">
               <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Profile link</TableHead><TableHead>Notes</TableHead><TableHead>Status</TableHead><TableHead>Requested</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
               <TableBody>
                 {optRequests.map(r => (
@@ -284,7 +322,7 @@ export function AdminDashboard({ adminEmail, users: initialUsers, audits }: { ad
       <Card>
         <CardHeader><CardTitle>Recent reports ({audits.length})</CardTitle></CardHeader>
         <CardContent>
-          <Table>
+          <Table className="min-w-max">
             <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Profile</TableHead><TableHead>Score</TableHead><TableHead>Provider</TableHead><TableHead>Billable</TableHead><TableHead>Status</TableHead><TableHead>Generated</TableHead><TableHead>Retry filing / email</TableHead></TableRow></TableHeader>
             <TableBody>
               {audits.map(a => (

@@ -1,0 +1,301 @@
+/* ------------------------------------------------------------------------------------------------
+   Admin panel layout.
+   ------------------------------------------------------------------------------------------------
+   Everything here is scoped under `.ix-admin` and built from the tokens already in
+   app/design-system.css — square corners, hairline borders, one accent. The admin panel should look
+   like the same product as the customer side, not like a second application bolted on, so this file
+   adds layout and one new component (the tile) and invents no new colours.
+
+   The shape of the panel is the point. It used to be a single page 8,400px tall that loaded every
+   table in the product on every visit: users, audits, enquiries, announcements, reports. Finding
+   anything meant scrolling past four things you were not looking for, and the page got slower with
+   every row the business added. It is now an overview of five tiles, each opening a page that loads
+   only its own data.
+   ------------------------------------------------------------------------------------------------ */
+
+.ix-admin {
+  min-height: 100vh;
+  background: var(--ix-bg);
+  color: var(--ix-text);
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------------------------------------------------------------------------------- Top bar */
+.ix-admin__bar {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--ix-gap-lg);
+  padding: 12px 24px;
+  border-bottom: 1px solid var(--ix-border);
+  /* Opaque, not translucent: rows scrolling underneath a blurred bar turn the area labels into
+     mush exactly when you are trying to read where you are. */
+  background: var(--ix-bg);
+}
+
+.ix-admin__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ix-gap-sm);
+  flex: none;
+  text-decoration: none;
+  color: var(--ix-heading);
+  font-size: 15px;
+  font-weight: 500;
+}
+.ix-admin__brand-tag {
+  font-size: 11px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--ix-accent);
+  border: 1px solid rgba(203, 180, 255, .35);
+  padding: 1px 6px;
+}
+
+/* Horizontal area switcher. Scrolls rather than wraps, so the bar keeps its height on a phone. */
+.ix-admin__nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ix-admin__nav::-webkit-scrollbar { display: none; }
+
+.ix-admin__link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  font-size: 13px;
+  color: var(--ix-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  transition: color .12s ease, border-color .12s ease, background-color .12s ease;
+}
+.ix-admin__link:hover { color: var(--ix-heading); background: var(--ix-surface); }
+.ix-admin__link[aria-current="page"] {
+  color: var(--ix-heading);
+  border-color: var(--ix-border);
+  background: var(--ix-surface);
+}
+
+/* The count beside an area name in the bar. Only rendered when something is waiting, so its
+   presence is the signal and its absence means "nothing to do here". */
+.ix-admin__count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ix-bg);
+  background: var(--ix-accent);
+}
+
+.ix-admin__right { display: flex; align-items: center; gap: var(--ix-gap); flex: none; }
+.ix-admin__email {
+  font-size: 12px;
+  color: var(--ix-muted);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------------------------ Page */
+.ix-admin__main { flex: 1; padding: 32px 24px 80px; }
+.ix-admin__col { width: 100%; max-width: 1180px; margin-inline: auto; }
+
+.ix-admin__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ix-gap);
+  flex-wrap: wrap;
+  margin-bottom: var(--ix-gap-xl);
+}
+.ix-admin__head-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.ix-admin__head-actions { display: flex; gap: var(--ix-gap-sm); flex-wrap: wrap; }
+
+/* --------------------------------------------------------------------------- Headline stats */
+/* auto-fit rather than a fixed column count: the same markup gives five across on a monitor and
+   two across on a phone without a media query per breakpoint. */
+.ix-admin__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  /* The hairlines are drawn by each cell's own box-shadow rather than by a coloured container
+     showing through 1px gaps. Both give the same grid, but the container trick paints the LEFTOVER
+     cell too — at two columns on a phone, five stats leave a sixth slot, and it showed up as a grey
+     rectangle with nothing in it. A shadow per cell simply draws nothing where there is no cell. */
+  background: var(--ix-bg);
+  border: 1px solid var(--ix-border);
+  margin-bottom: var(--ix-gap-xl);
+}
+.ix-admin__stat {
+  background: var(--ix-bg);
+  box-shadow: 0 0 0 1px var(--ix-border);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ix-admin__stat-label {
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ix-muted);
+}
+.ix-admin__stat-value {
+  font-size: 26px;
+  line-height: 30px;
+  font-weight: 500;
+  color: var(--ix-heading);
+  font-variant-numeric: tabular-nums;
+}
+.ix-admin__stat-note { font-size: 12px; color: var(--ix-faint); }
+.ix-admin__stat-note--attention { color: var(--ix-warning); }
+
+/* ------------------------------------------------------------------------------------ Tiles */
+/* 320px rather than 270px so the grid settles on THREE columns at full width, not four: there are
+   five tiles, and four columns leaves the fifth stranded alone on a second row. Three gives 3 + 2,
+   which reads as a deliberate block. */
+.ix-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--ix-gap);
+}
+
+/* The whole tile is the link — not a card with a button in the corner. A target you can hit
+   anywhere is faster to use and needs no "Open" affordance explaining itself. */
+.ix-tile-link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  min-height: 190px;
+  text-decoration: none;
+  color: inherit;
+  background: var(--ix-surface);
+  border: 1px solid var(--ix-border);
+  transition: border-color .12s ease, background-color .12s ease, transform .12s ease;
+}
+.ix-tile-link:hover {
+  border-color: var(--ix-border-strong);
+  background: var(--ix-raised);
+  transform: translateY(-1px);
+}
+.ix-tile-link:active { transform: none; }
+
+.ix-tile-link__top { display: flex; align-items: center; justify-content: space-between; gap: var(--ix-gap-sm); }
+.ix-tile-link__icon { color: var(--ix-accent); flex: none; }
+
+/* The attention pill. Deliberately the only accent-filled element on the page, so "something is
+   waiting for you" is legible from across the room and cannot be confused with decoration. */
+.ix-tile-link__attn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ix-bg);
+  background: var(--ix-accent);
+}
+.ix-tile-link__attn--quiet {
+  color: var(--ix-faint);
+  background: transparent;
+  border: 1px solid var(--ix-border);
+}
+
+.ix-tile-link__title { font-size: 16px; font-weight: 500; color: var(--ix-heading); margin: 0; }
+.ix-tile-link__body { font-size: 13px; line-height: 1.55; color: var(--ix-muted); margin: 0; }
+
+/* The tile's own numbers: two or three facts, not a table. */
+.ix-tile-link__facts {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ix-border);
+}
+.ix-tile-link__fact { display: flex; flex-direction: column; gap: 1px; }
+.ix-tile-link__fact-value {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ix-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+}
+.ix-tile-link__fact-label { font-size: 11px; color: var(--ix-faint); }
+
+/* ---------------------------------------------------------------------------------- Panels */
+.ix-panel {
+  border: 1px solid var(--ix-border);
+  background: var(--ix-surface);
+  margin-bottom: var(--ix-gap-lg);
+}
+.ix-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ix-gap);
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--ix-border);
+}
+.ix-panel__title {
+  display: flex;
+  align-items: center;
+  gap: var(--ix-gap-sm);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ix-heading);
+  margin: 0;
+}
+.ix-panel__desc { font-size: 13px; line-height: 1.55; color: var(--ix-muted); margin: 6px 0 0; max-width: 78ch; }
+.ix-panel__body { padding: 20px; }
+.ix-panel__body--flush { padding: 0; }
+.ix-panel__foot {
+  padding: 12px 20px;
+  border-top: 1px solid var(--ix-border);
+  font-size: 12px;
+  color: var(--ix-faint);
+}
+
+/* A table wider than the page scrolls inside its panel instead of squeezing its last column into
+   an unreadable sliver — which is what the users and reports tables were doing. */
+.ix-panel__scroll { overflow-x: auto; }
+.ix-panel__scroll table { width: 100%; min-width: max-content; }
+
+/* -------------------------------------------------------------------------- Small utilities */
+.ix-admin-grid { display: grid; gap: var(--ix-gap); }
+.ix-admin-grid--2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.ix-admin-grid--3 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+
+.ix-admin-actions { display: flex; align-items: center; gap: var(--ix-gap-sm); flex-wrap: wrap; }
+
+/* "Nothing here" inside a panel: one line, no illustration, no empty-state ceremony. */
+.ix-admin-none { font-size: 14px; color: var(--ix-muted); margin: 0; }
+
+@media (max-width: 720px) {
+  .ix-admin__bar { gap: var(--ix-gap); padding: 10px 16px; }
+  .ix-admin__main { padding: 24px 16px 64px; }
+  .ix-admin__email { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ix-tile-link, .ix-admin__link { transition: none; }
+  .ix-tile-link:hover { transform: none; }
+}
