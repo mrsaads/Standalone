@@ -105,40 +105,7 @@ export function AdminShell({
   );
 }
 
-// A section inside an admin page. Header, optional description, body — the same shape everywhere,
-// so a page is read as a list of things rather than as a collage.
-export function Panel({
-  title,
-  description,
-  actions,
-  footer,
-  flush,
-  children,
-}: {
-  title: ReactNode;
-  description?: ReactNode;
-  actions?: ReactNode;
-  footer?: ReactNode;
-  flush?: boolean;
-  children: ReactNode;
-}) {
-  return (
-    <section className="ix-panel">
-      <div className="ix-panel__head">
-        <div style={{ minWidth: 0 }}>
-          <h2 className="ix-panel__title">{title}</h2>
-          {description && <p className="ix-panel__desc">{description}</p>}
-        </div>
-        {actions && <div className="ix-admin-actions">{actions}</div>}
-      </div>
-      <div className={flush ? "ix-panel__body ix-panel__body--flush" : "ix-panel__body"}>{children}</div>
-      {footer && <div className="ix-panel__foot">{footer}</div>}
-    </section>
-  );
-}
-
-// Wraps a wide table so it scrolls within its panel rather than compressing its last column to
-// nothing. See .ix-panel__scroll.
-export function TableScroll({ children }: { children: ReactNode }) {
-  return <div className="ix-panel__scroll">{children}</div>;
-}
+// Panel and TableScroll live in app/ui-kit.tsx, shared with the customer app — one definition, so
+// the admin panel and a client's report cannot drift into two visual languages again. Re-exported
+// here because every admin page already imports them from this module.
+export { Panel, TableScroll, Stats, StatCard, Tile, Tiles } from "../ui-kit";

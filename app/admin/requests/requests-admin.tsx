@@ -62,7 +62,7 @@ export function RequestsAdmin({ initial }: { initial: OptimizationRequest[] }) {
       flush
     >
       {requests.length === 0 ? (
-        <p className="ix-admin-none" style={{ padding: 20 }}>
+        <p className="ix-none" style={{ padding: 20 }}>
           No requests yet. These arrive from the Optimization tab of a completed audit report.
         </p>
       ) : (

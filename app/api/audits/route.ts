@@ -10,17 +10,20 @@ import { precheckWeeklyLimit, reserveAuditSlot, renewReservationLease, completeR
 import { enqueueDelivery } from "@/lib/delivery-worker";
 import { isTrustedOrigin } from "@/lib/http";
 import { fetchUpworkProfile } from "@/lib/upwork-fetch";
-import { entitlementFor, type Entitlement } from "@/lib/entitlements";
+import { entitlementFor } from "@/lib/entitlements";
+import { applyAuditAccess } from "@/lib/audit-access";
 
-// The AI-generated optimization content (suggestedHeadline/suggestedOverview) is a subscriber
-// perk (see lib/entitlements.ts). The FULL report — including these fields — is always written to
-// the database as-is (so an upgrade later doesn't require regenerating anything), but a free-tier
-// account must never receive them over the wire: hiding the "Optimization" tab in the UI alone
-// would not stop a free account from reading the fields straight out of the API response.
-function redactForEntitlement(report: AuditReport, entitlement: Entitlement): AuditReport {
-  if (entitlement.canOptimize) return report;
-  return { ...report, suggestedHeadline: "", suggestedOverview: "" };
-}
+// What a free account receives over the wire is decided in lib/audit-access.ts — one finding per
+// profile area, the score and its counts, and the name of the biggest flaw; everything else removed
+// from the object before it is serialized.
+//
+// The FULL report is always written to the database as-is, so an upgrade later reveals the rest
+// without regenerating anything. What changes is only what leaves the server.
+//
+// This used to be a local two-line function that blanked the optimization fields. It moved because
+// the same redaction has to run on the reopen route as well (app/api/audits/[id]/route.ts, which
+// backs the "audit ready" email's ?openAudit= link) — two copies of a paywall is one copy that
+// eventually stops matching the other.
 
 const requestSchema = z.object({
   profileText: z.string().max(40000),
@@ -393,8 +396,10 @@ export async function POST(request: Request) {
     catch (enqueueError) { console.error("Delivery enqueue failed", enqueueError instanceof Error ? enqueueError.name : "UnknownError"); }
 
     const entitlement = entitlementFor(user);
+    const { audit, access } = applyAuditAccess(report, entitlement);
     return json({
-      audit: redactForEntitlement(report, entitlement),
+      audit,
+      access,
       auditId,
       entitlement,
       account: { role: user.role, plan: entitlement.plan, weeklyLimit: user.role === "admin" ? null : 1, creditsRemaining: entitlement.creditsRemaining },

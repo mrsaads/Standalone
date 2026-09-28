@@ -116,7 +116,7 @@ export function AnnouncementComposer({ initial }: { initial: AnnouncementListRow
             </AlertDescription>
           </Alert>
 
-          <div className="ix-admin-grid ix-admin-grid--2">
+          <div className="ix-grid-auto">
             <div>
               <label className="text-sm font-medium" htmlFor="ann-audience">Send to</label>
               <Select value={audience} onValueChange={v => edited<Audience>(setAudience)(v as Audience)}>
@@ -164,7 +164,7 @@ export function AnnouncementComposer({ initial }: { initial: AnnouncementListRow
               placeholder="Plain text, written exactly as you type it. No AI is involved, so this keeps working whatever the AI credit balance is." />
           </div>
 
-          <div className="ix-admin-grid ix-admin-grid--2">
+          <div className="ix-grid-auto">
             <div>
               <label className="text-sm font-medium" htmlFor="ann-action-label">Button label (optional)</label>
               <Input id="ann-action-label" className="mt-1" maxLength={60} value={actionLabel}
@@ -200,7 +200,7 @@ export function AnnouncementComposer({ initial }: { initial: AnnouncementListRow
             </Alert>
           )}
 
-          <div className="ix-admin-actions">
+          <div className="ix-actions">
             <Button variant="outline" disabled={!ready || busy} onClick={() => void checkAudience()}>
               {busy && !preview ? "Checking…" : "Check who this reaches"}
             </Button>
@@ -218,7 +218,7 @@ export function AnnouncementComposer({ initial }: { initial: AnnouncementListRow
         flush
       >
         {sent.length === 0 ? (
-          <p className="ix-admin-none" style={{ padding: 20 }}>Nothing has been sent yet.</p>
+          <p className="ix-none" style={{ padding: 20 }}>Nothing has been sent yet.</p>
         ) : (
           <TableScroll>
             <Table>

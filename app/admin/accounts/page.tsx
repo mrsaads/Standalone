@@ -74,7 +74,7 @@ export default async function AdminAccountsPage() {
       description="Every account and the audit plan it holds, plus every audit the product has generated. An audit plan is separate from managed-client access — that lives in Client portals."
     >
       {/* useSearchParams (for the ?drive= result banner) needs a Suspense boundary above it. */}
-      <Suspense fallback={<p className="ix-admin-none">Loading…</p>}>
+      <Suspense fallback={<p className="ix-none">Loading…</p>}>
         <AccountsAdmin
           users={userRows.map(u => ({
             ...u,

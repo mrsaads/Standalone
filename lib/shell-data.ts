@@ -1,6 +1,6 @@
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { getDb } from "@/db";
-import { managementEnquiries, notifications, profileAudits } from "@/db/schema";
+import { managementEnquiries, notifications, profileAudits, weeklyReports, workspaceProfiles } from "@/db/schema";
 import type { AppUser } from "./auth";
 import { listActiveWorkspaces } from "./workspace-access";
 import type { ShellNav } from "@/app/app-shell";
@@ -82,4 +82,57 @@ export async function getOpenManagementEnquiry(userId: string) {
     .orderBy(desc(managementEnquiries.createdAt))
     .limit(1);
   return row ?? null;
+}
+
+// The most recent PUBLISHED weekly report across every workspace this person is assigned to, so the
+// dashboard can put their latest report one click away instead of making them go Home → Client
+// portal → pick a profile → pick a report.
+//
+// `status = 'published'` is filtered in SQL, and the workspace list passed in has already been
+// resolved from active memberships by listActiveWorkspaces — this function never takes a workspace
+// id from a request.
+export async function getLatestPublishedReport(workspaceIds: string[]) {
+  if (workspaceIds.length === 0) return null;
+  const db = getDb();
+  const [row] = await db
+    .select({
+      id: weeklyReports.id,
+      title: weeklyReports.title,
+      periodStart: weeklyReports.periodStart,
+      periodEnd: weeklyReports.periodEnd,
+      publishedAt: weeklyReports.publishedAt,
+      workspaceId: weeklyReports.workspaceId,
+      clientActions: weeklyReports.clientActions,
+      overview: weeklyReports.overview,
+      profileName: workspaceProfiles.name,
+    })
+    .from(weeklyReports)
+    .innerJoin(workspaceProfiles, eq(workspaceProfiles.id, weeklyReports.workspaceProfileId))
+    .where(and(
+      inArray(weeklyReports.workspaceId, workspaceIds),
+      eq(weeklyReports.status, "published"),
+    ))
+    .orderBy(desc(weeklyReports.periodEnd))
+    .limit(1);
+  return row ?? null;
+}
+
+// The newest few notifications, for the dashboard's preview. The full list lives at /notifications;
+// this is the "is there anything I have not seen" glance.
+export async function getRecentNotifications(userId: string, limit = 3) {
+  const db = getDb();
+  return db
+    .select({
+      id: notifications.id,
+      kind: notifications.kind,
+      title: notifications.title,
+      body: notifications.body,
+      link: notifications.link,
+      readAt: notifications.readAt,
+      createdAt: notifications.createdAt,
+    })
+    .from(notifications)
+    .where(eq(notifications.userId, userId))
+    .orderBy(desc(notifications.createdAt))
+    .limit(limit);
 }

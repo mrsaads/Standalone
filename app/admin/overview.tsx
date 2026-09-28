@@ -1,7 +1,7 @@
 "use client";
-import Link from "next/link";
 import { Bell, Briefcase, FileSearch, Inbox, Sparkles, type LucideIcon } from "lucide-react";
 import type { AdminOverview } from "@/lib/admin-stats";
+import { StatCard, Stats, Tile, Tiles, type TileFact } from "../ui-kit";
 
 // The overview: five headline numbers, then five tiles.
 //
@@ -12,33 +12,24 @@ import type { AdminOverview } from "@/lib/admin-stats";
 // Ordered by urgency, not by alphabet or by how much code sits behind each one: the things a person
 // is waiting on come first, the reference areas last.
 
-type Tile = {
+type TileSpec = {
   href: string;
   label: string;
   icon: LucideIcon;
   body: string;
-  // > 0 renders the filled accent pill. This is the only accent-filled element on the page.
+  /** > 0 renders the filled accent pill. */
   attention: number;
   attentionLabel: string;
-  // Shown when nothing is waiting — a calm statement of the steady state rather than a blank space.
+  /** Shown when nothing is waiting — a calm statement of the steady state, not a blank space. */
   restingLabel: string;
-  facts: { value: string | number; label: string }[];
+  facts: TileFact[];
 };
-
-function StatCard({ label, value, note, attention }: { label: string; value: number | string; note?: string; attention?: boolean }) {
-  return (
-    <div className="ix-admin__stat">
-      <span className="ix-admin__stat-label">{label}</span>
-      <span className="ix-admin__stat-value">{value}</span>
-      {note && <span className={attention ? "ix-admin__stat-note ix-admin__stat-note--attention" : "ix-admin__stat-note"}>{note}</span>}
-    </div>
-  );
-}
 
 export function AdminOverviewTiles({ overview: o }: { overview: AdminOverview }) {
   const enquiriesWaiting = o.leadsNew + o.managementNew;
+  const outstanding = enquiriesWaiting + o.optimizationOpen;
 
-  const tiles: Tile[] = [
+  const tiles: TileSpec[] = [
     {
       href: "/admin/enquiries",
       label: "Enquiries",
@@ -117,7 +108,7 @@ export function AdminOverviewTiles({ overview: o }: { overview: AdminOverview })
 
   return (
     <>
-      <div className="ix-admin__stats">
+      <Stats>
         <StatCard label="Accounts" value={o.users} note={`${o.verifiedUsers} verified`} />
         <StatCard label="Paid plans" value={o.paidUsers} note={`${o.activeLast7Days} active this week`} />
         <StatCard label="Managed clients" value={o.activeWorkspaces} note={`${o.managedMembers} with portal access`} />
@@ -125,42 +116,34 @@ export function AdminOverviewTiles({ overview: o }: { overview: AdminOverview })
           label="Audits"
           value={o.auditsTotal}
           note={o.auditsCompleted === 0 && o.auditsTotal > 0 ? `${o.auditsFailed} failed, none completed` : `${o.auditsCompleted} completed`}
-          attention={o.auditsCompleted === 0 && o.auditsTotal > 0}
+          tone={o.auditsCompleted === 0 && o.auditsTotal > 0 ? "attention" : undefined}
         />
         <StatCard
           label="Waiting on you"
-          value={enquiriesWaiting + o.optimizationOpen}
-          note={enquiriesWaiting + o.optimizationOpen === 0 ? "Nothing outstanding" : "Enquiries and requests"}
-          attention={enquiriesWaiting + o.optimizationOpen > 0}
+          value={outstanding}
+          note={outstanding === 0 ? "Nothing outstanding" : "Enquiries and requests"}
+          tone={outstanding > 0 ? "attention" : undefined}
         />
-      </div>
+      </Stats>
 
-      <div className="ix-tiles">
-        {tiles.map(tile => {
-          const Icon = tile.icon;
-          return (
-            <Link key={tile.href} href={tile.href} className="ix-tile-link">
-              <div className="ix-tile-link__top">
-                <Icon className="ix-tile-link__icon" size={20} aria-hidden="true" />
-                {tile.attention > 0 ? (
-                  <span className="ix-tile-link__attn">{tile.attentionLabel}</span>
-                ) : (
-                  <span className="ix-tile-link__attn ix-tile-link__attn--quiet">{tile.restingLabel}</span>
-                )}
-              </div>
-              <h2 className="ix-tile-link__title">{tile.label}</h2>
-              <p className="ix-tile-link__body">{tile.body}</p>
-              <div className="ix-tile-link__facts">
-                {tile.facts.map(fact => (
-                  <div key={fact.label} className="ix-tile-link__fact">
-                    <span className="ix-tile-link__fact-value">{fact.value}</span>
-                    <span className="ix-tile-link__fact-label">{fact.label}</span>
-                  </div>
-                ))}
-              </div>
-            </Link>
-          );
-        })}
+      <div style={{ marginTop: "var(--ix-gap-xl)" }}>
+        <Tiles>
+          {tiles.map(tile => {
+            const Icon = tile.icon;
+            return (
+              <Tile
+                key={tile.href}
+                href={tile.href}
+                icon={<Icon size={20} aria-hidden="true" />}
+                title={tile.label}
+                body={tile.body}
+                badge={tile.attention > 0 ? tile.attentionLabel : tile.restingLabel}
+                badgeTone={tile.attention > 0 ? "attn" : "quiet"}
+                facts={tile.facts}
+              />
+            );
+          })}
+        </Tiles>
       </div>
     </>
   );

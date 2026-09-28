@@ -162,11 +162,11 @@ export function AccountsAdmin({ users: initialUsers, audits }: { users: UserRow[
         }
       >
         {loadingDrive ? (
-          <p className="ix-admin-none">Checking connection…</p>
+          <p className="ix-none">Checking connection…</p>
         ) : drive?.connected ? (
           <p className="text-sm">Connected as <strong>{drive.googleEmail}</strong>.</p>
         ) : (
-          <p className="ix-admin-none">
+          <p className="ix-none">
             {drive?.expired ? `The connection to ${drive.googleEmail} expired or was revoked.` : "Not connected yet."}
           </p>
         )}
@@ -179,10 +179,11 @@ export function AccountsAdmin({ users: initialUsers, audits }: { users: UserRow[
         <Alert>
           <AlertTitle>Manual plan management only</AlertTitle>
           <AlertDescription>
-            A free account can preview a full audit on screen but cannot download the PDF/Word report or
-            see the AI Optimization section — both enforced server-side, not just hidden in the UI. Use
-            &quot;Manage plan&quot; on an account below to switch it to Subscriber and record what you were paid.
-            Every change is written to the admin audit log.
+            A free account sees 8 of the 23 criteria — one from each profile area — plus its real score and
+            the name of its biggest flaw. The other 15 findings, the action plan, the narrative and the AI
+            Optimization section are withheld by the server, not hidden in the UI, and PDF/Word export is
+            refused outright. Use &quot;Manage plan&quot; on an account below to switch it to Subscriber and record
+            what you were paid. Every change is written to the admin audit log.
           </AlertDescription>
         </Alert>
       </Panel>
@@ -214,7 +215,7 @@ export function AccountsAdmin({ users: initialUsers, audits }: { users: UserRow[
         flush
       >
         {visibleUsers.length === 0 ? (
-          <p className="ix-admin-none" style={{ padding: 20 }}>No account matches that search.</p>
+          <p className="ix-none" style={{ padding: 20 }}>No account matches that search.</p>
         ) : (
           <TableScroll>
             <Table>
@@ -256,7 +257,7 @@ export function AccountsAdmin({ users: initialUsers, audits }: { users: UserRow[
         flush
       >
         {audits.length === 0 ? (
-          <p className="ix-admin-none" style={{ padding: 20 }}>No audits have been generated yet.</p>
+          <p className="ix-none" style={{ padding: 20 }}>No audits have been generated yet.</p>
         ) : (
           <TableScroll>
             <Table>
@@ -309,7 +310,7 @@ export function AccountsAdmin({ users: initialUsers, audits }: { users: UserRow[
               <Select value={planForm.auditEntitlement} onValueChange={v => setPlanForm(f => ({ ...f, auditEntitlement: v }))}>
                 <SelectTrigger className="mt-1 w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="free">Free (preview only)</SelectItem>
+                  <SelectItem value="free">Free (8 of 23 findings, no export)</SelectItem>
                   <SelectItem value="subscribed">Subscribed (full access)</SelectItem>
                   <SelectItem value="admin_granted">Granted by Improvexus (full access)</SelectItem>
                 </SelectContent>
@@ -356,8 +357,8 @@ export function AccountsAdmin({ users: initialUsers, audits }: { users: UserRow[
             </Button>
             <div>
               <p className="ix-muted-inline mb-1 block">History</p>
-              {loadingRecords ? <p className="ix-admin-none text-xs">Loading…</p> : planRecords.length === 0 ? (
-                <p className="ix-admin-none text-xs">No records yet.</p>
+              {loadingRecords ? <p className="ix-none text-xs">Loading…</p> : planRecords.length === 0 ? (
+                <p className="ix-none text-xs">No records yet.</p>
               ) : (
                 <ul className="text-xs space-y-1 max-h-40 overflow-y-auto">
                   {planRecords.map(r => (

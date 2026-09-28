@@ -19,6 +19,7 @@
     "test:local:isolation": "tsx scripts/local-tests/workspace-isolation.local-test.mts",
     "test:local:auth-throttle": "tsx scripts/local-tests/auth-throttle.local-test.mts",
     "test:local:admin-panel": "tsx scripts/local-tests/admin-panel.local-test.mts",
+    "test:local:free-lock": "tsx scripts/local-tests/free-plan-lock.local-test.mts",
     "seed:local-demo": "tsx scripts/seed-local-demo.mts"
   },
   "dependencies": {

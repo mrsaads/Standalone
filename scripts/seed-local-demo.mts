@@ -88,6 +88,18 @@ await sendAnnouncement({
   audience: "everyone", category: "service", createdByEmail: admin.email,
 });
 
+// A few completed audits for the managed client, so the customer dashboard and the saved-audit
+// list have something real in them rather than rendering their empty states.
+await db.execute(sql`
+  insert into profile_audits (user_id, user_email, profile_key, content_hash, profile_name, status, billable, provider, score, pass_count, weak_count, fail_count, created_at)
+  values
+    (${clientA.id}, ${clientA.email}, 'k-a1', 'h-a1', 'Data & admin support', 'completed', true, 'openai', 7.4, 14, 6, 3, now() - interval '2 days'),
+    (${clientA.id}, ${clientA.email}, 'k-a2', 'h-a2', 'Virtual assistant',     'completed', true, 'openai', 6.1, 11, 8, 4, now() - interval '12 days'),
+    (${clientA.id}, ${clientA.email}, 'k-a3', 'h-a3', 'Data entry specialist', 'completed', true, 'openai', 5.0,  9, 9, 5, now() - interval '26 days')
+`);
+
 const [row] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.email, admin.email));
+const [clientRow] = await db.select({ id: profiles.id }).from(profiles).where(eq(profiles.email, clientA.email));
 console.log(`ADMIN_ID=${row.id}`);
+console.log(`CLIENT_ID=${clientRow.id}`);
 process.exit(0);

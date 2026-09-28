@@ -57,30 +57,27 @@ export function NotificationList({ initial, initialUnread }: { initial: Notifica
 
   if (items.length === 0) {
     return (
-      <div className="ix-empty">
-        <h3>Nothing here yet</h3>
-        <p>
-          You will be notified when a weekly report is published, when an audit finishes, when your
-          managed-client access changes, and when something needs your input.
-        </p>
-      </div>
+      <p className="ix-none">
+        Nothing yet. You will be notified here when a weekly report is published, when an audit
+        finishes, when your managed-client access changes, and when something needs your input.
+      </p>
     );
   }
 
   return (
-    <div className="ix-stack">
-      <div className="ix-row" style={{ justifyContent: "space-between" }}>
-        <span className="ix-muted-inline">
-          {unread > 0 ? `${unread} unread` : "All caught up"}
-        </span>
-        {unread > 0 && (
-          <button type="button" className="ix-btn ix-btn--quiet" onClick={() => mark({ all: true })} disabled={busy}>
-            {busy ? "Marking…" : "Mark all as read"}
-          </button>
-        )}
-      </div>
-
-      {error && <p role="alert" className="ix-auth__error">{error}</p>}
+    <>
+      {(unread > 0 || error) && (
+        <div className="ix-row" style={{ justifyContent: "space-between", padding: "12px 16px", borderBottom: "1px solid var(--ix-border)" }}>
+          {error
+            ? <span role="alert" style={{ color: "var(--ix-danger)", fontSize: 13 }}>{error}</span>
+            : <span className="ix-muted-inline">{unread} unread</span>}
+          {unread > 0 && (
+            <button type="button" className="ix-btn ix-btn--quiet" onClick={() => mark({ all: true })} disabled={busy}>
+              {busy ? "Marking…" : "Mark all as read"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="ix-list">
         {items.map(item => {
@@ -125,6 +122,6 @@ export function NotificationList({ initial, initialUnread }: { initial: Notifica
           );
         })}
       </div>
-    </div>
+    </>
   );
 }

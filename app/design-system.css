@@ -321,3 +321,187 @@
 @media (prefers-reduced-motion: reduce) {
   .ix-btn { transition: none; }
 }
+
+/* ---------------------------------------------------------------------------------------------
+   Composition primitives — panels, stat strips, tiles
+   ---------------------------------------------------------------------------------------------
+   These started life in the admin panel and now live here, used by BOTH sides of the product. That
+   is the point: the admin panel and the customer app had drifted into two visual languages — one
+   built from shadcn Cards, the other from .ix-card and .ix-choice — and a person moving from their
+   dashboard into a report could tell they had crossed a seam. One definition, used everywhere, is
+   the only thing that actually prevents that.
+   --------------------------------------------------------------------------------------------- */
+
+/* A section of a page. Header, optional description, body — the same shape everywhere, so a screen
+   reads as a list of things rather than as a collage. */
+.ix-panel {
+  border: 1px solid var(--ix-border);
+  background: var(--ix-surface);
+}
+.ix-panel + .ix-panel { margin-top: var(--ix-gap-lg); }
+.ix-panel__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--ix-gap);
+  flex-wrap: wrap;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--ix-border);
+}
+.ix-panel__title {
+  display: flex;
+  align-items: center;
+  gap: var(--ix-gap-sm);
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--ix-heading);
+  margin: 0;
+}
+.ix-panel__desc { font-size: 13px; line-height: 1.55; color: var(--ix-muted); margin: 6px 0 0; max-width: 78ch; }
+.ix-panel__body { padding: 20px; }
+.ix-panel__body--flush { padding: 0; }
+.ix-panel__foot {
+  padding: 12px 20px;
+  border-top: 1px solid var(--ix-border);
+  font-size: 12px;
+  color: var(--ix-faint);
+}
+
+/* A table wider than the page scrolls inside its panel instead of squeezing its last column into an
+   unreadable sliver. */
+.ix-panel__scroll { overflow-x: auto; }
+.ix-panel__scroll table { width: 100%; min-width: max-content; }
+
+/* ------------------------------------------------------------------------------ Stat strip */
+/* auto-fit rather than a fixed column count: the same markup gives five across on a monitor and two
+   across on a phone without a media query per breakpoint.
+   The hairlines are drawn by each cell's own box-shadow rather than by a coloured container showing
+   through 1px gaps — the container trick also paints the LEFTOVER cell, so an odd number of stats in
+   an even number of columns leaves a rectangle with nothing in it. */
+.ix-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  background: var(--ix-bg);
+  border: 1px solid var(--ix-border);
+}
+.ix-stat-card {
+  background: var(--ix-bg);
+  box-shadow: 0 0 0 1px var(--ix-border);
+  padding: 16px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.ix-stat-card__label {
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--ix-muted);
+}
+.ix-stat-card__value {
+  font-size: 26px;
+  line-height: 30px;
+  font-weight: 500;
+  color: var(--ix-heading);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+/* A stat whose value is a word rather than a number ("Subscribed", "Not enrolled") — 26px reads as
+   shouting at that length, and wraps badly in a 150px column. */
+.ix-stat-card__value--word { font-size: 17px; line-height: 22px; }
+.ix-stat-card__note { font-size: 12px; color: var(--ix-faint); line-height: 1.45; }
+/* Amber, not the accent: the accent is the link colour everywhere else, so an accent-coloured note
+   reads as something you can click. */
+.ix-stat-card__note--attention { color: var(--ix-warning); }
+.ix-stat-card__note--positive { color: var(--ix-positive); }
+
+/* ----------------------------------------------------------------------------------- Tiles */
+.ix-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--ix-gap);
+}
+
+/* The whole tile is the link — not a card with a button in the corner. A target you can hit anywhere
+   is faster to use and needs no "Open" affordance explaining itself. */
+.ix-tile-link {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 20px;
+  min-height: 190px;
+  text-decoration: none;
+  color: inherit;
+  background: var(--ix-surface);
+  border: 1px solid var(--ix-border);
+  transition: border-color .12s ease, background-color .12s ease, transform .12s ease;
+}
+.ix-tile-link:hover {
+  border-color: var(--ix-border-strong);
+  background: var(--ix-raised);
+  transform: translateY(-1px);
+}
+.ix-tile-link:active { transform: none; }
+/* A tile that is not a link — the same block, used to explain something you cannot open yet. */
+.ix-tile-link--static { cursor: default; }
+.ix-tile-link--static:hover { border-color: var(--ix-border); background: var(--ix-surface); transform: none; }
+
+.ix-tile-link__top { display: flex; align-items: center; justify-content: space-between; gap: var(--ix-gap-sm); }
+.ix-tile-link__icon { color: var(--ix-accent); flex: none; }
+
+/* The attention pill. Deliberately the only accent-FILLED element on a page, so "something is
+   waiting for you" is legible from across the room and cannot be confused with decoration. */
+.ix-tile-link__attn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--ix-bg);
+  background: var(--ix-accent);
+}
+.ix-tile-link__attn--quiet {
+  color: var(--ix-faint);
+  background: transparent;
+  border: 1px solid var(--ix-border);
+}
+.ix-tile-link__attn--locked { color: var(--ix-muted); background: transparent; border: 1px solid var(--ix-border); }
+
+.ix-tile-link__title { font-size: 16px; font-weight: 500; color: var(--ix-heading); margin: 0; }
+.ix-tile-link__body { font-size: 13px; line-height: 1.55; color: var(--ix-muted); margin: 0; }
+
+/* The tile's own numbers: two or three facts, not a table. */
+.ix-tile-link__facts {
+  margin-top: auto;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--ix-border);
+}
+.ix-tile-link__fact { display: flex; flex-direction: column; gap: 1px; }
+.ix-tile-link__fact-value {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--ix-heading);
+  font-variant-numeric: tabular-nums;
+  line-height: 20px;
+}
+.ix-tile-link__fact-label { font-size: 11px; color: var(--ix-faint); }
+
+/* -------------------------------------------------------------------------- Small utilities */
+.ix-grid-auto { display: grid; gap: var(--ix-gap); grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.ix-grid-auto--sm { grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
+.ix-actions { display: flex; align-items: center; gap: var(--ix-gap-sm); flex-wrap: wrap; }
+/* "Nothing here" inside a panel: one line, no illustration, no empty-state ceremony. */
+.ix-none { font-size: 14px; color: var(--ix-muted); margin: 0; }
+.ix-none--padded { padding: 20px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .ix-tile-link { transition: none; }
+  .ix-tile-link:hover { transform: none; }
+}

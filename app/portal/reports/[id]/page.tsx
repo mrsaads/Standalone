@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { asc, desc, eq, and, lt } from "drizzle-orm";
 import { getDb } from "@/db";
@@ -7,7 +6,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getShellNav } from "@/lib/shell-data";
 import { requireReportAccess, WorkspaceAccessError } from "@/lib/workspace-access";
 import { buildMetricRows, NOT_PROVIDED } from "@/lib/report-metrics";
-import { AppShell, PageHead } from "../../../app-shell";
+import { AppShell, PageHead, Panel, StatCard, Stats } from "../../../app-shell";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +16,9 @@ export const dynamic = "force-dynamic";
 // gets to say which workspace this report belongs to. A draft, or a report in someone else's
 // workspace, is refused identically (as not-found), so this page cannot be used to probe for what
 // exists.
+//
+// Read on a narrow measure: this is a document, and a paragraph set across 1080px is uncomfortable
+// to read. The metrics get the full width because they are scanned, not read.
 export default async function ReportPage({ params }: { params: Promise<{ id: string }> }) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -71,18 +73,18 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     })),
     priorMetrics,
   );
-  const anyProvided = rows.some(r => r.provided);
+  const provided = rows.filter(r => r.provided);
+  const missing = rows.filter(r => !r.provided);
   const actionItems = updates.filter(u => u.requiresClientAction);
+  const plainUpdates = updates.filter(u => !u.requiresClientAction);
 
   return (
-    <AppShell nav={nav}>
-      <p style={{ marginBottom: 12 }}>
-        <Link href={`/portal?workspace=${access.workspace.id}&profile=${report.workspaceProfileId}`} className="ix-link">
-          ← {access.workspace.name}
-        </Link>
-      </p>
-
+    <AppShell nav={nav} narrow>
       <PageHead
+        back={{
+          href: `/portal?workspace=${access.workspace.id}&profile=${report.workspaceProfileId}`,
+          label: access.workspace.name,
+        }}
         title={report.title || `Week of ${report.periodStart}`}
         description={<>
           {profile?.name && <>{profile.name} · </>}
@@ -99,125 +101,105 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
 
       {/* Things the client needs to do are hoisted above everything else — burying them under the
           numbers is how they get missed. */}
-      {actionItems.length > 0 && (
+      {(actionItems.length > 0 || report.clientActions) && (
         <div className="ix-notice ix-notice--warning" style={{ marginBottom: "var(--ix-gap-lg)" }}>
           <div>
             <strong>Needs your input</strong>
-            <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
-              {actionItems.map(item => <li key={item.id} style={{ marginBottom: 4 }}>{item.body}</li>)}
-            </ul>
+            {report.clientActions && <p className="ix-prose" style={{ marginTop: 6 }}>{report.clientActions}</p>}
+            {actionItems.length > 0 && (
+              <ul style={{ margin: "8px 0 0", paddingLeft: 18 }}>
+                {actionItems.map(item => <li key={item.id} style={{ marginBottom: 4 }}>{item.body}</li>)}
+              </ul>
+            )}
           </div>
         </div>
       )}
-      {report.clientActions && (
-        <div className="ix-notice ix-notice--warning" style={{ marginBottom: "var(--ix-gap-lg)" }}>
-          <div><strong>Questions for you</strong><p style={{ margin: "8px 0 0", whiteSpace: "pre-wrap" }}>{report.clientActions}</p></div>
+
+      {provided.length > 0 && (
+        <div style={{ marginBottom: "var(--ix-gap-lg)" }}>
+          <Stats>
+            {provided.map(row => (
+              <StatCard
+                key={row.key}
+                label={row.label}
+                value={row.display}
+                // A comparison is rendered only when one is genuinely meaningful — never against a
+                // missing previous value, and never as a percentage of zero.
+                note={row.comparison.kind !== "incomparable"
+                  ? `${row.comparison.label} vs previous period`
+                  : row.sourceLabel || undefined}
+                tone={row.comparison.kind !== "incomparable"
+                  ? (row.comparison.direction === "up" ? "positive" : row.comparison.direction === "down" ? "attention" : undefined)
+                  : undefined}
+              />
+            ))}
+          </Stats>
         </div>
       )}
 
-      <div className="ix-stack ix-stack--lg">
-        {report.overview && <Section title="Profile overview" body={report.overview} />}
-        {report.goals && <Section title="Current goals" body={report.goals} />}
+      {report.overview && <Section title="Profile overview" body={report.overview} />}
+      {report.goals && <Section title="Goals for this period" body={report.goals} />}
+      {report.workCompleted && <Section title="Work completed" body={report.workCompleted} />}
+      {report.nextActions && <Section title="Planned for next period" body={report.nextActions} />}
 
-        <section className="ix-stack" aria-labelledby="ix-metrics">
-          <h2 id="ix-metrics" className="ix-section-title">Metrics for this period</h2>
-          {!anyProvided ? (
-            <div className="ix-empty">
-              <h3>No metrics recorded for this period</h3>
-              <p>
-                Nothing was entered for this report. That is different from a measurement of zero —
-                every metric below would say &ldquo;{NOT_PROVIDED}&rdquo;, so none are shown.
-              </p>
-            </div>
-          ) : (
-            <div className="ix-grid-3">
-              {rows.map(row => (
-                <div key={row.key} className="ix-tile">
-                  <div className="ix-stat">
-                    <span className="ix-stat__label">{row.label}</span>
-                    <span className="ix-stat__value" style={!row.provided ? { color: "var(--ix-muted)", fontSize: 15 } : undefined}>
-                      {row.display}
-                    </span>
-                    {/* A comparison is rendered only when one is genuinely meaningful. */}
-                    {row.provided && row.comparison.kind !== "incomparable" && (
-                      <span
-                        className="ix-stat__note"
-                        style={{
-                          color: row.comparison.direction === "up" ? "var(--ix-positive)"
-                            : row.comparison.direction === "down" ? "var(--ix-danger)"
-                            : "var(--ix-muted)",
-                        }}
-                      >
-                        {row.comparison.label} vs previous period
-                      </span>
-                    )}
-                    {row.provided && row.sourceLabel && (
-                      <span className="ix-stat__note">{row.sourceLabel}</span>
-                    )}
-                    {row.provided && (row.periodStart || row.periodEnd) && (
-                      <span className="ix-stat__note">{row.periodStart} → {row.periodEnd}</span>
-                    )}
-                    {row.note && <span className="ix-stat__note">{row.note}</span>}
-                  </div>
+      {plainUpdates.length > 0 && (
+        <Panel title="Updates" description="Notes from your account manager on this period." flush>
+          <div className="ix-list">
+            {plainUpdates.map(update => (
+              <div key={update.id} className="ix-list__item">
+                <div className="ix-list__main">
+                  <span className="ix-prose" style={{ fontSize: 14 }}>{update.body}</span>
+                  <span className="ix-list__sub">{new Date(update.createdAt).toLocaleDateString()}</span>
                 </div>
-              ))}
-            </div>
-          )}
-        </section>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      )}
 
-        {report.workCompleted && <Section title="Work completed this period" body={report.workCompleted} />}
-        {report.nextActions && <Section title="Planned for next week" body={report.nextActions} />}
-
-        {updates.length > 0 && (
-          <section className="ix-stack" aria-labelledby="ix-updates">
-            <h2 id="ix-updates" className="ix-section-title">Updates</h2>
-            <div className="ix-list">
-              {updates.map(update => (
-                <div key={update.id} className="ix-list__item">
-                  <div className="ix-list__main">
-                    <span style={{ whiteSpace: "pre-wrap", fontSize: 14 }}>{update.body}</span>
-                    <span className="ix-list__sub">{new Date(update.createdAt).toLocaleDateString()}</span>
-                  </div>
-                  {update.requiresClientAction && <span className="ix-badge ix-badge--warning">Action needed</span>}
+      <Panel
+        title="Attachments"
+        description={attachments.length > 0 ? "Files your account manager shared on this report." : undefined}
+        flush={attachments.length > 0}
+      >
+        {attachments.length === 0 ? (
+          <p className="ix-none">No attachments were shared on this report.</p>
+        ) : (
+          <div className="ix-list">
+            {attachments.map(file => (
+              <a key={file.id} href={`/api/portal/attachments/${file.id}`} className="ix-list__item">
+                <div className="ix-list__main">
+                  <span className="ix-list__title">{file.fileName}</span>
+                  <span className="ix-list__sub">
+                    {file.sizeBytes > 0 ? `${Math.max(1, Math.round(file.sizeBytes / 1024))} KB` : "File"}
+                  </span>
                 </div>
-              ))}
-            </div>
-          </section>
+                <span className="ix-link">Download</span>
+              </a>
+            ))}
+          </div>
         )}
+      </Panel>
 
-        <section className="ix-stack" aria-labelledby="ix-attachments">
-          <h2 id="ix-attachments" className="ix-section-title">Attachments</h2>
-          {attachments.length === 0 ? (
-            <div className="ix-empty"><p>No attachments were shared on this report.</p></div>
-          ) : (
-            <div className="ix-list">
-              {attachments.map(file => (
-                <a key={file.id} href={`/api/portal/attachments/${file.id}`} className="ix-list__item">
-                  <div className="ix-list__main">
-                    <span className="ix-list__title">{file.fileName}</span>
-                    <span className="ix-list__sub">
-                      {file.sizeBytes > 0 ? `${Math.max(1, Math.round(file.sizeBytes / 1024))} KB` : "File"}
-                    </span>
-                  </div>
-                  <span className="ix-link">Download</span>
-                </a>
-              ))}
-            </div>
-          )}
-        </section>
-      </div>
+      {/* What was NOT measured is stated rather than left as a gap the reader has to notice. A
+          metric nobody entered is not a measurement of zero, and this page never lets the two blur. */}
+      {missing.length > 0 && (
+        <Panel title="Not measured this period" description={`These were left blank on this report, which is different from a measurement of zero.`}>
+          <p className="ix-none">
+            {missing.map(r => r.label).join(" · ")} — each would read &ldquo;{NOT_PROVIDED}&rdquo;.
+          </p>
+        </Panel>
+      )}
     </AppShell>
   );
 }
 
 function Section({ title, body }: { title: string; body: string }) {
-  const id = `ix-${title.toLowerCase().replace(/[^a-z]+/g, "-")}`;
   return (
-    <section className="ix-stack" aria-labelledby={id}>
-      <h2 id={id} className="ix-section-title">{title}</h2>
+    <Panel title={title}>
       {/* Stored as plain text and rendered as a text node — React escapes it, so nothing an admin
           types can become markup in a client's browser. */}
-      <div className="ix-card" style={{ whiteSpace: "pre-wrap", fontSize: 14, lineHeight: 1.65 }}>{body}</div>
-    </section>
+      <p className="ix-prose">{body}</p>
+    </Panel>
   );
 }

@@ -65,7 +65,7 @@ export function AdminInbox({
         flush
       >
         {leads.length === 0 ? (
-          <p className="ix-admin-none" style={{ padding: 20 }}>No enquiries yet.</p>
+          <p className="ix-none" style={{ padding: 20 }}>No enquiries yet.</p>
         ) : (
           <TableScroll>
             <Table>
@@ -133,7 +133,7 @@ export function AdminInbox({
         flush
       >
         {enquiries.length === 0 ? (
-          <p className="ix-admin-none" style={{ padding: 20 }}>No requests yet.</p>
+          <p className="ix-none" style={{ padding: 20 }}>No requests yet.</p>
         ) : (
           <TableScroll>
             <Table>
