@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const shown = displayName(country, city);
   const note = cityNote(country.slug, city.slug);
   const title = fitTitle([
-    `Upwork Bidder in ${shown} | Upwork Bidding Agency · Improvexus`,
+    `Upwork Bidder in ${shown} | Upwork Bidding Agency | Improvexus`,
     `Upwork Bidder in ${shown} | Improvexus Bidding Agency`,
     `Upwork Bidder in ${shown} | Improvexus`,
   ]);
@@ -49,7 +49,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
     ...(note ? [
       `Top Upwork bidder for ${shown} freelancers and agencies in ${kinds}. Targeted proposals and weekly reports from Improvexus, an Upwork bidding agency.`,
       `Upwork bidder for ${shown} freelancers and agencies in ${kinds}. Targeted proposals and weekly reports from Improvexus.`,
-      `Upwork bidder for ${shown} freelancers in ${kinds}. Targeted proposals, weekly reports. Improvexus.`,
+      `Upwork bidder for ${shown} freelancers in ${kinds}. Targeted proposals and weekly reports.`,
       `Upwork bidder for ${shown} freelancers in ${kinds}. Improvexus bidding agency.`,
     ] : []),
     `Looking for a top Upwork bidder in ${shown}? Improvexus is an Upwork bidding agency for freelancers and agencies in ${city.name}.`,
@@ -90,10 +90,10 @@ export default async function CityPage({ params }: { params: Promise<Params> }) 
     ? `Upwork bidding agency for freelancers and agencies in ${place}, covering ${listOf(work.map(w => w.short))}.`
     : `Upwork bidding agency for freelancers and agencies in ${place}.`;
   const faqs = [
-    { q: `Do you work with freelancers in ${shown}?`, a: `Yes. We work remotely with freelancers and agencies in ${city.name} and across ${country.short}. ${teamSentence(city.name, city.tz, now)} Targeting, proposals and weekly reports are all handled online.` },
-    ...(work.length ? [{ q: `What kind of work do you bid for from ${city.name}?`, a: `Any category you sell on Upwork. The work most associated with ${city.name} is ${listOf(work.map(w => w.short))}, and each is bid differently: ${work[0].short} proposals, for example, are judged like this — ${work[0].screen.charAt(0).toLowerCase()}${work[0].screen.slice(1)}` }] : []),
-    { q: `Can I visit your office in ${city.name}?`, a: `We do not have an office in ${city.name}. Improvexus is based in Pakistan and runs every engagement online, so your location does not change how we work together.` },
-    { q: "How do we get started?", a: "Send the enquiry form with your Upwork profile link and what you want to improve. We read your profile first, then reply by email or WhatsApp with what we would change and how an engagement would run." },
+    { q: `Do you work with freelancers in ${shown}?`, a: `Yes. We work remotely with freelancers and agencies in ${city.name} and across ${country.short}. ${teamSentence(city.name, city.tz, now)} We handle targeting, proposals and weekly reports online.` },
+    ...(work.length ? [{ q: `What kind of work do you bid for from ${city.name}?`, a: `We bid in any category you sell on Upwork. The work ${city.name} is best known for is ${listOf(work.map(w => w.short))}, and each of those is bid in its own way. Take ${work[0].short} as an example. Clients in that category look for this: ${work[0].screen.charAt(0).toLowerCase()}${work[0].screen.slice(1)}` }] : []),
+    { q: `Can I visit your office in ${city.name}?`, a: `We don't have an office in ${city.name}. Improvexus is based in Pakistan and we run every engagement online, so where you live doesn't change how we work together.` },
+    { q: "How do we get started?", a: "Fill in the enquiry form with your Upwork profile link and what you want to improve. We read your profile first. Then we reply by email or WhatsApp with what we'd change and how working together would go." },
   ].map(faq => ({ q: faq.q, a: tidy(faq.a) }));
 
   return (
@@ -112,12 +112,12 @@ export default async function CityPage({ params }: { params: Promise<Params> }) 
             <li><Link href={countryPath(country)}>{country.name}</Link></li>
             <li aria-current="page">{city.name}</li>
           </ol>
-          <span className="ix-l-eyebrow">UPWORK BIDDER · {city.name.toUpperCase()}</span>
+          <span className="ix-l-eyebrow">UPWORK BIDDER IN {city.name.toUpperCase()}</span>
           <h1>A dedicated Upwork bidder for freelancers and agencies in {tidy(`${shown}.`)}</h1>
           <p className="ix-m-place">{place}</p>
           <p className="ix-m-lede">{work.length
-            ? <>Improvexus is an Upwork bidding agency. For {city.name} freelancers selling {listOf(work.map(w => w.short))}, we pick the jobs worth your Connects, reach them while they are new, and write each proposal to the client&apos;s brief.</>
-            : <>Improvexus is an Upwork bidding agency. We pick the jobs worth your Connects, reach them while they are new, and write each proposal to the client&apos;s brief.</>}</p>
+            ? <>Improvexus is an Upwork bidding agency. If you&apos;re a {city.name} freelancer selling {listOf(work.map(w => w.short))}, we pick the jobs that are worth your Connects, get to them while they&apos;re new and write each proposal to the client&apos;s brief.</>
+            : <>Improvexus is an Upwork bidding agency. We pick the jobs that are worth your Connects, get to them while they&apos;re new and write each proposal to the client&apos;s brief.</>}</p>
           <div className="ix-l-hero-ctas">
             <a href="#enquiry" className="ix-l-btn-solid">Talk to a bidder <ArrowRight size={15} style={{ display: "inline", marginLeft: 4, verticalAlign: -2 }} /></a>
             <Link href="/services/upwork-bidding-proposal-support" className="ix-l-btn-ghost" style={{ border: "1px solid var(--ix-l-border)" }}>How our bidding works</Link>
@@ -157,12 +157,12 @@ export default async function CityPage({ params }: { params: Promise<Params> }) 
           </dl>
           <div style={{ marginTop: 18 }}><MarketTable placeName={city.name} tz={city.tz} at={now} /></div>
           <div className="ix-m-prose" style={{ marginTop: 22 }}>
-            <p>{teamSentence(city.name, city.tz, now)} A bidder covering the hours you are not at your desk is the practical fix for the clock above — see <Link href="/services/upwork-bidding-proposal-support">how our bidding works</Link>, or how the market differs across the country in <Link href={countryPath(country)}>Upwork bidding agency in {country.short}</Link>.</p>
+            <p>{teamSentence(city.name, city.tz, now)} The practical fix for the clock above is a bidder who covers the hours when you&apos;re away from your desk. You can read <Link href="/services/upwork-bidding-proposal-support">how our bidding works</Link>, or see how the market differs across the country on our page about the <Link href={countryPath(country)}>Upwork bidding agency in {country.short}</Link>.</p>
           </div>
         </section>
 
         <section className="ix-l-section" aria-labelledby="ix-faq">
-          <div className="ix-l-section-head"><span>QUESTIONS</span><h2 id="ix-faq">Straight answers.</h2></div>
+          <div className="ix-l-section-head"><span>QUESTIONS</span><h2 id="ix-faq">Questions people ask us.</h2></div>
           <div className="ix-m-faq">
             {faqs.map(faq => <details key={faq.q}><summary>{faq.q}</summary><p>{faq.a}</p></details>)}
           </div>
@@ -176,7 +176,7 @@ export default async function CityPage({ params }: { params: Promise<Params> }) 
             </div>
             <ul className="ix-m-chips">
               {nearest.map(({ other, km }) => (
-                <li key={other.slug}><Link href={cityPath(country, other)}>Upwork bidder in {other.name} <span>· {Math.round(km / 10) * 10 || 10} km</span></Link></li>
+                <li key={other.slug}><Link href={cityPath(country, other)}>Upwork bidder in {other.name} <span>({Math.round(km / 10) * 10 || 10} km)</span></Link></li>
               ))}
             </ul>
           </section>

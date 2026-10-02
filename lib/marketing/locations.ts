@@ -43,8 +43,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "united-states", name: "United States", short: "the United States", iso: "US", hreflang: "en-US", currency: "US dollar (USD)", regionWord: "state",
     context: [
-      "The United States is the largest source of client spend on Upwork, which changes the problem for American freelancers and agencies: you are in your clients' time zone and you are competing with the whole world for their attention. Winning is rarely about price — it is about being the proposal that reads as local, specific and low-risk.",
-      "For US-based agencies the constraint is usually hours rather than opportunity. Senior people end up doing the bidding because nobody else can represent the work, and it comes straight out of billable time. A dedicated bidder who works to a written targeting profile gives those hours back without lowering the bar on what gets sent.",
+      "More client money on Upwork comes from the United States than from anywhere else. If you're an American freelancer or agency, that puts you in the same time zone as your clients and in competition with the whole world for their attention. You'll rarely win on price. You win by sending the proposal that sounds local, specific and low-risk.",
+      "US agencies are usually short of hours, and there's no shortage of jobs to go for. Senior people end up doing the bidding because nobody else can speak for the work, and that time comes out of billable hours. A dedicated bidder who follows a written targeting profile gives those hours back, and the standard of what gets sent stays the same.",
     ],
     cities: [
       c("new-york", "New York", "New York", "America/New_York", 40.7128, -74.006),
@@ -68,8 +68,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "united-kingdom", name: "United Kingdom", short: "the United Kingdom", iso: "GB", hreflang: "en-GB", currency: "pound sterling (GBP)", regionWord: "nation",
     context: [
-      "British freelancers sit in a useful middle position on Upwork: the working day overlaps with European clients in the morning and with the US East Coast in the afternoon. The cost is that the best American jobs are often posted after UK office hours, when a solo freelancer has stopped checking the feed.",
-      "UK clients and agencies tend to write detailed briefs and expect a proposal that answers them point by point. A templated opening is noticed immediately. That suits a bidding approach built on reading the brief properly rather than sending volume.",
+      "British freelancers are in a handy spot on Upwork. The working day overlaps with European clients in the morning and with the US East Coast in the afternoon. The catch is that many of the best American jobs go up after UK office hours, when a freelancer working alone has stopped checking the feed.",
+      "UK clients and agencies tend to write detailed briefs, and they expect a proposal that answers them point by point. They spot a templated opening straight away. That suits the way we bid, which starts with reading the brief properly and sending fewer proposals.",
     ],
     cities: [
       c("london", "London", "England", "Europe/London", 51.5074, -0.1278),
@@ -87,8 +87,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "canada", name: "Canada", short: "Canada", iso: "CA", hreflang: "en-CA", currency: "Canadian dollar (CAD)", regionWord: "province",
     context: [
-      "Canadian freelancers share time zones with the US client base, which removes the timing problem most of the world has — and puts them in direct competition with American freelancers for the same jobs. Clear positioning matters more than speed here.",
-      "Canada spans several time zones, so a Vancouver freelancer and a Toronto freelancer see the same job at very different points in their day. A bidder covering the feed from early Eastern to late Pacific closes that gap.",
+      "Canadian freelancers share time zones with most of Upwork's American clients, so they don't have the timing problem that most of the world has. It also means they're up against American freelancers for the same jobs, and in that contest clear positioning counts for more than speed.",
+      "Canada covers several time zones, so a freelancer in Vancouver and one in Toronto see the same job at very different points in their day. A bidder who covers the feed from early Eastern time to late Pacific time closes that gap.",
     ],
     cities: [
       c("toronto", "Toronto", "Ontario", "America/Toronto", 43.6532, -79.3832),
@@ -103,8 +103,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "australia", name: "Australia", short: "Australia", iso: "AU", hreflang: "en-AU", currency: "Australian dollar (AUD)", regionWord: "state",
     context: [
-      "Australia has the hardest clock on Upwork. When US clients post during their morning, most of Australia is asleep; by the time an Australian freelancer opens the feed, a good job can already have dozens of proposals. Timing, more than anything else, is what a bidder fixes for an Australian account.",
-      "The other side of that clock is an advantage: Australian and New Zealand clients post while the rest of the English-speaking world is offline, and local freelancers who answer those jobs quickly face far less competition.",
+      "Australia has the hardest clock on Upwork. When American clients post in their morning, most of Australia is asleep. By the time an Australian freelancer opens the feed, a good job can already have dozens of proposals. Timing is the main thing a bidder fixes for an Australian account.",
+      "The same clock works in your favour closer to home. Australian and New Zealand clients post while the rest of the English-speaking world is offline, and local freelancers who answer those jobs quickly face far less competition.",
     ],
     cities: [
       c("sydney", "Sydney", "New South Wales", "Australia/Sydney", -33.8688, 151.2093),
@@ -118,8 +118,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "new-zealand", name: "New Zealand", short: "New Zealand", iso: "NZ", hreflang: "en-NZ", currency: "New Zealand dollar (NZD)", regionWord: "region",
     context: [
-      "New Zealand is the first English-speaking market to start each working day, and the furthest from the American clients who post most of the work. A freelancer in Auckland who bids only during local office hours is consistently a day behind the US feed.",
-      "Covering the hours when New Zealand is asleep is the single most useful thing a bidding team can do for an account here; the profile and proposal quality then decide what happens with the jobs that are reached in time.",
+      "New Zealand is the first English-speaking country to start each working day, and it's the furthest from the American clients who post most of the work. A freelancer in Auckland who only bids during local office hours is always about a day behind the US feed.",
+      "The most useful thing a bidding team can do for a New Zealand account is cover the hours when the country is asleep. Once the jobs are reached in time, your profile and the quality of the proposal decide what happens next.",
     ],
     cities: [
       c("auckland", "Auckland", "Auckland Region", "Pacific/Auckland", -36.8509, 174.7645),
@@ -130,8 +130,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "ireland", name: "Ireland", short: "Ireland", iso: "IE", hreflang: "en-IE", currency: "euro (EUR)", regionWord: "province",
     context: [
-      "Irish freelancers work the same clock as the UK and bill in euros, which makes them a natural fit for both British and continental European clients as well as the US East Coast afternoon.",
-      "The market is small enough that most Irish freelancers on Upwork are competing internationally from day one. Positioning around a specific buyer, rather than a general skill, is what makes a profile from a small market stand out in a global search.",
+      "Irish freelancers keep the same hours as the UK and bill in euros. That makes them an easy fit for British and continental European clients, and for American East Coast clients in the afternoon.",
+      "Ireland is a small market, so most Irish freelancers on Upwork compete internationally from their first day. A profile from a small country gets noticed in a global search when it's aimed at one specific buyer. A general skill on its own won't do that.",
     ],
     cities: [
       c("dublin", "Dublin", "Leinster", "Europe/Dublin", 53.3498, -6.2603),
@@ -142,8 +142,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "south-africa", name: "South Africa", short: "South Africa", iso: "ZA", hreflang: "en-ZA", currency: "South African rand (ZAR)", regionWord: "province",
     context: [
-      "South Africa shares most of its working day with the UK and Europe and has a strong English-language services sector, so South African freelancers are well placed for British and European clients and for the first half of the US day.",
-      "Because the rand is weaker than the dollar, the temptation is to compete on price. The freelancers who do best from South Africa position on quality and communication instead, and their proposals need to make that case in the first two lines.",
+      "South Africa shares most of its working day with the UK and Europe and has a strong English-language services sector. South African freelancers are well placed for British and European clients, and for the first half of the American day.",
+      "The rand is weaker than the dollar, so it's tempting to compete on price. The South African freelancers who do best sell on quality and communication, and their proposals have to make that case in the first two lines.",
     ],
     cities: [
       c("johannesburg", "Johannesburg", "Gauteng", "Africa/Johannesburg", -26.2041, 28.0473),
@@ -155,16 +155,16 @@ export const COUNTRIES: Country[] = [
   {
     slug: "singapore", name: "Singapore", short: "Singapore", iso: "SG", hreflang: "en-SG", currency: "Singapore dollar (SGD)", regionWord: "region",
     context: [
-      "Singapore-based freelancers and agencies usually sell specialised, higher-value work — and work a clock that is almost exactly opposite the US. Jobs posted in the American morning arrive late in the Singapore evening.",
-      "For agencies in Singapore, the practical question is who watches the feed overnight. A bidder working to an agreed targeting profile means the right jobs are answered while they are new, without anyone on the team staying up for it.",
+      "Freelancers and agencies in Singapore usually sell specialised, higher-value work. They also work a clock that's almost the opposite of America's, so jobs posted in the American morning arrive late in the Singapore evening.",
+      "For an agency in Singapore the practical question is who watches the feed overnight. With a bidder working to an agreed targeting profile, the right jobs get answered while they're new and nobody on your team has to stay up.",
     ],
     cities: [c("singapore", "Singapore", "Central Region", "Asia/Singapore", 1.3521, 103.8198)],
   },
   {
     slug: "nigeria", name: "Nigeria", short: "Nigeria", iso: "NG", hreflang: "en-NG", currency: "Nigerian naira (NGN)", regionWord: "state",
     context: [
-      "Nigeria has one of the fastest-growing freelance communities in Africa, and its working day overlaps well with both the UK and the US East Coast. The talent is there; the common obstacle is a profile and proposals that do not yet give an overseas client enough evidence to take the first chance.",
-      "For a newer Nigerian freelancer, the first few contracts matter far more than volume. That means bidding selectively on jobs where existing portfolio work is a close match, and saying so plainly in the opening line.",
+      "Nigeria has one of the fastest-growing freelance communities in Africa, and its working day overlaps well with both the UK and the US East Coast. The talent is there. What often holds people back is a profile and proposals that don't yet give an overseas client enough proof to take a first chance on them.",
+      "If you're a newer Nigerian freelancer, your first few contracts matter far more than the number of proposals you send. Bid on the jobs where your portfolio is a close match, and say so in your opening line.",
     ],
     cities: [
       c("lagos", "Lagos", "Lagos State", "Africa/Lagos", 6.5244, 3.3792),
@@ -175,8 +175,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "kenya", name: "Kenya", short: "Kenya", iso: "KE", hreflang: "en-KE", currency: "Kenyan shilling (KES)", regionWord: "county",
     context: [
-      "Kenya's freelancers — particularly in writing, virtual assistance, data work and software — work a clock a few hours ahead of the UK and well ahead of the US. The American morning falls in the Kenyan late afternoon and evening.",
-      "As in most growing freelance markets, the gap is rarely skill. It is evidence: a profile that leads with a specific service and proof of it gets a very different response from one that lists everything the freelancer could do.",
+      "Kenyan freelancers are strong in writing, virtual assistance, data work and software. Kenya's clock is a few hours ahead of the UK and well ahead of the US, so the American morning falls in the late afternoon and evening in Kenya.",
+      "As in most growing freelance markets, skill is rarely the problem. Proof is. A profile that leads with one service and shows evidence of it gets a very different response from one that lists everything the freelancer could do.",
     ],
     cities: [
       c("nairobi", "Nairobi", "Nairobi County", "Africa/Nairobi", -1.2921, 36.8219),
@@ -186,8 +186,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "ghana", name: "Ghana", short: "Ghana", iso: "GH", hreflang: "en-GH", currency: "Ghanaian cedi (GHS)", regionWord: "region",
     context: [
-      "Ghana sits on Greenwich Mean Time all year, so a Ghanaian freelancer's day lines up almost exactly with the UK's and runs into the US East Coast morning without any late nights.",
-      "It is a smaller freelance market than Nigeria's, which makes a clearly positioned profile stand out more easily — provided the proposals reach the right jobs rather than every job.",
+      "Ghana stays on Greenwich Mean Time all year. A Ghanaian freelancer's day lines up almost exactly with the UK's and runs into the US East Coast morning, with no late nights needed.",
+      "Ghana's freelance market is smaller than Nigeria's, which makes it easier for a clearly positioned profile to stand out. That only works if your proposals go to the right jobs and not to every job.",
     ],
     cities: [
       c("accra", "Accra", "Greater Accra", "Africa/Accra", 5.6037, -0.187),
@@ -197,8 +197,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "philippines", name: "Philippines", short: "the Philippines", iso: "PH", hreflang: "en-PH", currency: "Philippine peso (PHP)", regionWord: "province",
     context: [
-      "The Philippines is one of the largest freelance workforces on Upwork, with a long history of serving American clients. Filipino freelancers know the night shift well: the US business day falls squarely in the Philippine night.",
-      "With so many freelancers offering similar services, the differentiator is specialisation. A profile and proposals built around one clear service for one kind of client do far better than a general virtual-assistant pitch in a very crowded category.",
+      "The Philippines has one of the largest freelance workforces on Upwork and a long history of working for American clients. Filipino freelancers know the night shift well, because the American business day falls right in the middle of the Philippine night.",
+      "So many freelancers offer similar services that specialising is the way to stand out. A profile and proposals built around one service for one kind of client do far better than a general virtual-assistant pitch in a very crowded category.",
     ],
     cities: [
       c("manila", "Manila", "Metro Manila", "Asia/Manila", 14.5995, 120.9842),
@@ -210,8 +210,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "pakistan", name: "Pakistan", short: "Pakistan", iso: "PK", hreflang: "en-PK", currency: "Pakistani rupee (PKR)", regionWord: "province",
     context: [
-      "Pakistan is home — our team works on Pakistan Standard Time — and it is one of the largest freelancing countries in the world. That is also the difficulty: in the most popular categories a Pakistani freelancer is bidding against thousands of profiles that look alike, many of them undercutting on price.",
-      "The US morning arrives in the Pakistani evening, so the best jobs are posted just as most freelancers are finishing for the day. Agencies here usually solve that with a dedicated bidder; solo freelancers usually solve it by losing sleep. A written targeting profile and proposals that open on the client's problem are what separate a top Upwork bidder from someone spending Connects.",
+      "Pakistan is home. Our team works on Pakistan Standard Time, and this is one of the biggest freelancing countries in the world. That's also what makes it hard. In the most popular categories a Pakistani freelancer is bidding against thousands of profiles that look the same, and many of them are cheaper.",
+      "The American morning arrives in the Pakistani evening, so the best jobs go up just as most freelancers are finishing for the day. Agencies here usually deal with that by hiring a dedicated bidder, and solo freelancers usually deal with it by losing sleep. A top Upwork bidder works from a written targeting profile and opens every proposal on the client's problem. Without those two things, bidding is mostly a way of spending Connects.",
     ],
     cities: [
       c("lahore", "Lahore", "Punjab", "Asia/Karachi", 31.5204, 74.3587),
@@ -230,8 +230,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "india", name: "India", short: "India", iso: "IN", hreflang: "en-IN", currency: "Indian rupee (INR)", regionWord: "state",
     context: [
-      "India has one of the largest pools of freelancers and agencies on Upwork, and with it some of the heaviest competition in development, design and digital marketing. An Indian profile is rarely short on skills or experience — it is short on anything that distinguishes it from the next two hundred.",
-      "Indian Standard Time puts the US East Coast morning in the early evening and the West Coast morning late at night. Agencies in India commonly run a dedicated bidding desk for exactly that reason. What a good bidder adds beyond coverage is selectivity: fewer proposals, sent earlier, each written to the brief.",
+      "India has one of the largest pools of freelancers and agencies on Upwork, and some of the heaviest competition in development, design and digital marketing. An Indian profile rarely lacks skills or experience. What it usually lacks is anything that sets it apart from the next two hundred.",
+      "On Indian Standard Time the US East Coast morning falls in the early evening and the West Coast morning late at night. That's why so many Indian agencies run a dedicated bidding desk. A good bidder covers those hours and is also selective, which means fewer proposals, sent earlier, each one written to the brief.",
     ],
     cities: [
       c("mumbai", "Mumbai", "Maharashtra", "Asia/Kolkata", 19.076, 72.8777),
@@ -255,8 +255,8 @@ export const COUNTRIES: Country[] = [
   {
     slug: "bangladesh", name: "Bangladesh", short: "Bangladesh", iso: "BD", hreflang: "en-BD", currency: "Bangladeshi taka (BDT)", regionWord: "division",
     context: [
-      "Bangladesh has a very large and fast-growing freelance community, especially in design, web development and digital marketing. As in Pakistan and India, the challenge is standing out in categories where many profiles look the same and compete on price.",
-      "Bangladesh is an hour ahead of Pakistan, so the US working day starts in the Bangladeshi evening and runs past midnight. A bidder covering those hours — and a profile that leads with a specific service rather than a list of tools — is the practical route out of the low-price end of the market.",
+      "Bangladesh has a very large and fast-growing freelance community, especially in design, web development and digital marketing. As in Pakistan and India, the hard part is standing out in categories where many profiles look the same and compete on price.",
+      "Bangladesh is an hour ahead of Pakistan, so the American working day starts in the Bangladeshi evening and runs past midnight. The practical way out of the low-price end of the market is a bidder who covers those hours and a profile that leads with one specific service.",
     ],
     cities: [
       c("dhaka", "Dhaka", "Dhaka Division", "Asia/Dhaka", 23.8103, 90.4125),

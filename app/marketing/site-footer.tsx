@@ -11,8 +11,8 @@ export function SiteFooter() {
       <div className="ix-l-footer-grid">
         <div>
           <p className="ix-l-footer-brand">IMPROVEXUS</p>
-          <p className="ix-l-footer-blurb">An Upwork bidding agency: dedicated Upwork bidders, evidence-based profile audits, proposal support and weekly reporting for freelancers and agencies.</p>
-          <p className="ix-l-footer-blurb">We never promise rankings, jobs or earnings.</p>
+          <p className="ix-l-footer-blurb">We are an Upwork bidding agency. Freelancers and agencies come to us for a dedicated Upwork bidder, a profile audit, help with proposals and a weekly report.</p>
+          <p className="ix-l-footer-blurb">We don&apos;t promise rankings, jobs or earnings.</p>
         </div>
         <nav aria-label="Services">
           <p className="ix-l-footer-head">Services</p>
@@ -36,7 +36,7 @@ export function SiteFooter() {
           </ul>
         </nav>
       </div>
-      <p className="ix-l-footer-base">IMPROVEXUS — INNOVATE. OPTIMIZE. EXCEL.</p>
+      <p className="ix-l-footer-base">IMPROVEXUS. INNOVATE. OPTIMIZE. EXCEL.</p>
     </footer>
   );
 }

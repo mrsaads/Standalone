@@ -145,7 +145,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
               body={
                 enquiry
                   ? `We have your request from ${new Date(enquiry.createdAt).toLocaleDateString()}. Access is set up by hand, so nothing changes here until an account manager enrols you.`
-                  : "Weekly reports, if the Improvexus team manages your profile for you. Enrolment is arranged by an account manager — there is no checkout."
+                  : "This is where your weekly reports appear if the Improvexus team manages your profile. An account manager sets it up for you, so there is nothing to buy here."
               }
               badge="Not enrolled"
               badgeTone="locked"
@@ -208,7 +208,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
             <div className="ix-stack">
               <p className="ix-none">
                 You have not run an audit yet. The first one takes a couple of minutes and needs
-                nothing but your profile text — no Upwork password, ever.
+                nothing but your profile text. We never ask for your Upwork password.
               </p>
               <div><Link href="/audits" className="ix-btn ix-btn--primary">Start your first audit</Link></div>
             </div>

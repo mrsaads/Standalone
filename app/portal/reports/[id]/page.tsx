@@ -186,7 +186,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       {missing.length > 0 && (
         <Panel title="Not measured this period" description={`These were left blank on this report, which is different from a measurement of zero.`}>
           <p className="ix-none">
-            {missing.map(r => r.label).join(" · ")} — each would read &ldquo;{NOT_PROVIDED}&rdquo;.
+            {missing.map(r => r.label).join(", ")}. Each of these would read &ldquo;{NOT_PROVIDED}&rdquo;.
           </p>
         </Panel>
       )}

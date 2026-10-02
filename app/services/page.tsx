@@ -11,7 +11,7 @@ import { ServiceIcon } from "@/app/marketing/service-icon";
 import "@/app/landing.css";
 import "@/app/marketing/marketing.css";
 
-const DESCRIPTION = "What Improvexus does for Upwork freelancers and agencies: profile audits, positioning, dedicated bidding, profile management and weekly reporting.";
+const DESCRIPTION = "What Improvexus does for Upwork freelancers and agencies, from profile audits and positioning to dedicated bidding, profile management and weekly reports.";
 
 export const metadata: Metadata = {
   title: "Upwork Bidding, Proposal & Profile Services",
@@ -38,8 +38,8 @@ export default function ServicesIndexPage() {
             <li aria-current="page">Services</li>
           </ol>
           <span className="ix-l-eyebrow">WHAT WE HELP WITH</span>
-          <h1>Every part of showing up well on Upwork.</h1>
-          <p className="ix-m-lede">Six things, each with its own strategy. Open any of them to see what usually goes wrong, what we do about it step by step, and what changes in your working week as a result.</p>
+          <h1>What we can help you with on Upwork.</h1>
+          <p className="ix-m-lede">There are six services here. Open any of them to see what usually goes wrong, what we do about it one step at a time and what changes in your working week.</p>
         </header>
         <section className="ix-l-section">
           <div className="ix-l-grid-3">

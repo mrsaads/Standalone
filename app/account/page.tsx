@@ -57,7 +57,7 @@ export default async function AccountPage() {
 
       <Panel
         title="Your details"
-        description="Change these by contacting Improvexus — this build has no self-service profile editor yet."
+        description="To change any of these, contact Improvexus. You can't edit them yourself here yet."
       >
         <Defs>
           <Def label="Name" value={user.fullName || <span className="ix-muted-inline">Not set</span>} />
@@ -84,7 +84,7 @@ export default async function AccountPage() {
             value={entitlement.unlimited
               ? "Unlimited audits"
               : auditsLast7Days > 0
-                ? "Used — resets 7 days after your last completed audit"
+                ? "Used. It resets 7 days after your last completed audit"
                 : "1 audit available"}
           />
           <Def
@@ -97,7 +97,7 @@ export default async function AccountPage() {
             label="Findings you can read"
             value={entitlement.canDownload
               ? "All 23 criteria, with evidence and recommended actions"
-              : "8 of 23 — one from each profile area. Your score is still calculated from all 23."}
+              : "8 of 23, one from each profile area. Your score is still calculated from all 23."}
           />
           <Def label="Action plan" value={entitlement.canDownload ? "Included" : "Not included on this plan"} />
           <Def label="Report export" value={entitlement.canDownload ? "PDF and Word" : "Not included on this plan"} />

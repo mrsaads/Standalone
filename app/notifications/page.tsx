@@ -18,7 +18,7 @@ export default async function NotificationsPage() {
     <AppShell nav={nav} narrow>
       <PageHead
         title="Notifications"
-        description="Everything Improvexus has told you about, newest first. Nothing here is email — these are in-app only."
+        description="Everything Improvexus has told you about, newest first. These only appear here in the app. We don't email them."
       />
       <Panel
         title={<>All notifications <span className="ix-muted-inline">({rows.length})</span></>}

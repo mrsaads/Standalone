@@ -17,7 +17,7 @@ export function RequestManagementButton({ alreadyRequested }: { alreadyRequested
   if (sent || alreadyRequested) {
     return (
       <p role="status" className="ix-field-help">
-        Request received. An account manager will contact you — enrolment is set up by hand, so
+        We have your request. An account manager will contact you. Enrolment is set up by hand, so
         nothing here unlocks until they do it.
       </p>
     );

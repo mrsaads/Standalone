@@ -33,7 +33,7 @@ export function normalizePhone(countryIso: unknown, rawNumber: unknown, label: s
   const country = typeof countryIso === "string" ? dialCountry(countryIso) : undefined;
   if (!country) return { ok: false, message: `Choose the country code for your ${label}.` };
   if (typeof rawNumber !== "string" || !rawNumber.trim()) return { ok: false, message: `Enter your ${label}.` };
-  if (!/^[\d\s().\-]+$/.test(rawNumber.trim())) return { ok: false, message: `Your ${label} can only contain digits, spaces and dashes — the country code is chosen from the list.` };
+  if (!/^[\d\s().\-]+$/.test(rawNumber.trim())) return { ok: false, message: `Your ${label} can only contain digits, spaces and hyphens. Pick the country code from the list.` };
   let digits = rawNumber.replace(/\D/g, "");
   if (country.iso !== "IT") digits = digits.replace(/^0+/, "");
   if (digits.length < 4) return { ok: false, message: `That ${label} is too short.` };
@@ -112,7 +112,7 @@ export function validateLead(input: unknown): { ok: true; lead: ValidLead; honey
   if (!link.ok) fields.profileLink = link.message;
 
   const goals = d.goals.trim();
-  if (goals.length < GOALS_MIN) fields.goals = `Tell us what you want help with — at least ${GOALS_MIN} characters, so we can give you a useful answer.`;
+  if (goals.length < GOALS_MIN) fields.goals = `Tell us a bit more about what you want help with. We need at least ${GOALS_MIN} characters to give you a useful answer.`;
   else if (goals.length > GOALS_MAX) fields.goals = `Please keep this under ${GOALS_MAX} characters.`;
 
   if (d.consent !== true) fields.consent = "Please agree to share your details so Improvexus can contact you.";

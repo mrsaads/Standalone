@@ -41,7 +41,7 @@ export async function guardLead(): Promise<LeadGuard> {
     return {
       ok: false,
       retryAfterSeconds: result.retryAfterSeconds,
-      message: `Several enquiries have already been sent from ${result.reason === "browser" ? "this browser" : "your network"}. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"} — or reply to the message we send you about your first one.`,
+      message: `Several enquiries have already been sent from ${result.reason === "browser" ? "this browser" : "your network"}. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}, or just reply to the message we send you about your first one.`,
     };
   } catch (error) {
     console.error("Lead throttle unavailable; accepting the enquiry.", error instanceof Error ? error.name : "UnknownError");

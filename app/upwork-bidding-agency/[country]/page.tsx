@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { COUNTRIES, LOCATIONS_BASE, cityPath, countryPath, getCountry, regionsOf } from "@/lib/marketing/locations";
 import { breadcrumbSchema, faqSchema, localServiceSchema } from "@/lib/marketing/schema";
-import { OG_IMAGES, SITE_NAME, fitTitle } from "@/lib/marketing/site";
+import { OG_IMAGES, SITE_NAME, fitDescription, fitTitle } from "@/lib/marketing/site";
 import { formatUtcOffset, utcOffsetMinutes } from "@/lib/marketing/time";
 import { SiteNav } from "@/app/marketing/site-nav";
 import { SiteFooter } from "@/app/marketing/site-footer";
@@ -21,14 +21,17 @@ export function generateStaticParams() {
   return COUNTRIES.map(country => ({ country: country.slug }));
 }
 
-const describe = (short: string) =>
-  `Upwork bidding agency in ${short}: a dedicated Upwork bidder, proposals written to the brief and weekly reports for freelancers and agencies.`;
+const describe = (short: string) => fitDescription([
+  `An Upwork bidding agency for freelancers and agencies in ${short}. You get a dedicated Upwork bidder, proposals written to the brief and a weekly report.`,
+  `An Upwork bidding agency for freelancers and agencies in ${short}. You get a dedicated bidder, proposals written to the brief and a weekly report.`,
+  `An Upwork bidding agency for freelancers in ${short}. You get a dedicated bidder, proposals written to the brief and a weekly report.`,
+]);
 
 export async function generateMetadata({ params }: { params: Promise<{ country: string }> }): Promise<Metadata> {
   const country = getCountry((await params).country);
   if (!country) return {};
   const title = fitTitle([
-    `Upwork Bidding Agency in ${country.short} | Upwork Bidders · Improvexus`,
+    `Upwork Bidding Agency in ${country.short} | Upwork Bidders | Improvexus`,
     `Upwork Bidding Agency in ${country.short} | Improvexus`,
     `Upwork Bidding Agency in ${country.name} | Improvexus`,
   ]);
@@ -53,8 +56,8 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
   const zones = [...new Set(country.cities.map(city => formatUtcOffset(utcOffsetMinutes(city.tz, now))))];
   const faqs = [
     { q: `Do you work with freelancers and agencies in ${country.short}?`, a: `Yes. We work remotely with freelancers and agencies across ${country.short}, including ${country.cities.slice(0, 4).map(city => city.name).join(", ")}${country.cities.length > 4 ? " and more" : ""}. ${teamSentence(main.name, main.tz, now)}` },
-    { q: `Do you have an office in ${country.short}?`, a: country.iso === "PK" ? "Improvexus is based in Pakistan. Engagements are run online — targeting, proposals and weekly reports all live in your client portal — so where you are in the country makes no difference." : `No. Improvexus is based in Pakistan and works with clients in ${country.short} remotely. Everything — targeting, proposals, weekly reports — is handled online, and we would rather say that plainly than pretend to be around the corner.` },
-    { q: "Do you guarantee jobs?", a: "No. Hiring decisions belong to clients, and nobody can promise them. We commit to the work — targeting, proposals, a weekly record — and show you exactly what it produced." },
+    { q: `Do you have an office in ${country.short}?`, a: country.iso === "PK" ? "Improvexus is based in Pakistan and we run every engagement online. Your targeting, proposals and weekly reports are all in your client portal, so it makes no difference where in the country you are." : `No. Improvexus is based in Pakistan and works with clients in ${country.short} remotely. We handle the targeting, the proposals and the weekly reports online. We'd sooner tell you that plainly than pretend to be around the corner.` },
+    { q: "Do you guarantee jobs?", a: "No. The hiring decision is the client's and nobody can promise it. What we commit to is the work, which means the targeting, the proposals and a weekly record, and we show you what came of it." },
   ];
   const description = describe(country.short);
 
@@ -73,9 +76,9 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
             <li><Link href={LOCATIONS_BASE}>Upwork bidding agency</Link></li>
             <li aria-current="page">{country.name}</li>
           </ol>
-          <span className="ix-l-eyebrow">UPWORK BIDDING AGENCY · {country.name.toUpperCase()}</span>
+          <span className="ix-l-eyebrow">UPWORK BIDDING AGENCY IN {country.name.toUpperCase()}</span>
           <h1>Upwork bidding agency for freelancers and agencies in {country.short}.</h1>
-          <p className="ix-m-lede">A dedicated Upwork bidder for your account: jobs chosen against a written targeting profile, proposals written to each client&apos;s brief, and a weekly report of what was sent and what happened.</p>
+          <p className="ix-m-lede">You get a dedicated Upwork bidder for your account. We choose jobs using a targeting profile we agree with you, write each proposal to the client&apos;s brief and send you a weekly report of what went out and what happened.</p>
           <div className="ix-l-hero-ctas">
             <a href="#enquiry" className="ix-l-btn-solid">Talk to a bidder <ArrowRight size={15} style={{ display: "inline", marginLeft: 4, verticalAlign: -2 }} /></a>
             <Link href="/signup?destination=audit" className="ix-l-btn-ghost" style={{ border: "1px solid var(--ix-l-border)" }}>Audit my profile first</Link>
@@ -85,13 +88,13 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
         <section className="ix-l-section" aria-labelledby="ix-context">
           <div className="ix-l-section-head">
             <span>BIDDING FROM {country.name.toUpperCase()}</span>
-            <h2 id="ix-context">What is different about Upwork from {country.short}.</h2>
+            <h2 id="ix-context">What&apos;s different about bidding on Upwork from {country.short}.</h2>
           </div>
           <dl className="ix-m-facts">
-            <div className="ix-m-fact"><dt>Time {zones.length === 1 ? "zone" : "zones"}</dt><dd>{zones.join(" · ")}</dd></div>
+            <div className="ix-m-fact"><dt>Time {zones.length === 1 ? "zone" : "zones"}</dt><dd>{zones.join(", ")}</dd></div>
             <div className="ix-m-fact"><dt>Local currency</dt><dd>{country.currency}</dd></div>
             <div className="ix-m-fact"><dt>Cities covered</dt><dd>{country.cities.length}</dd></div>
-            <div className="ix-m-fact"><dt>How we work</dt><dd>Remote, online</dd></div>
+            <div className="ix-m-fact"><dt>How we work</dt><dd>Remotely, online</dd></div>
           </dl>
           <div className="ix-m-prose" style={{ marginTop: 24 }}>
             {country.context.map(paragraph => <p key={paragraph.slice(0, 24)}>{paragraph}</p>)}
@@ -111,7 +114,7 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
           <div className="ix-l-section-head">
             <span>CITIES</span>
             <h2 id="ix-cities">Upwork bidders for every major city in {country.short}.</h2>
-            <p>Grouped by {country.regionWord}. Each city page covers what that city&apos;s freelancers are known for, how that changes the bid, and its own clock against the main client markets.</p>
+            <p>The cities are grouped by {country.regionWord}. Each city page tells you what its freelancers are known for, how that changes the bid and when the main client markets start work in local time.</p>
           </div>
           <div className="ix-m-places">
             {regions.map(group => (
@@ -142,7 +145,7 @@ export default async function CountryPage({ params }: { params: Promise<{ countr
         </section>
 
         <section className="ix-l-section" aria-labelledby="ix-faq">
-          <div className="ix-l-section-head"><span>QUESTIONS</span><h2 id="ix-faq">Straight answers.</h2></div>
+          <div className="ix-l-section-head"><span>QUESTIONS</span><h2 id="ix-faq">Questions people ask us.</h2></div>
           <div className="ix-m-faq">
             {faqs.map(faq => <details key={faq.q}><summary>{faq.q}</summary><p>{faq.a}</p></details>)}
           </div>

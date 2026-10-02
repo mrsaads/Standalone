@@ -38,11 +38,11 @@ export const absoluteUrl = (path: string) => `${siteUrl()}${path.startsWith("/")
 
 export const HOME_TITLE = "Upwork Bidding Agency & Dedicated Upwork Bidders | Improvexus";
 export const HOME_DESCRIPTION =
-  "Improvexus is an Upwork bidding agency: dedicated Upwork bidders, profile audits, proposal support and weekly reporting for freelancers and agencies.";
+  "Improvexus is an Upwork bidding agency. We give freelancers and agencies a dedicated Upwork bidder, a profile audit, proposal help and a weekly report.";
 
 // The social card (app/opengraph-image.tsx). A page that sets its own `openGraph` replaces the
 // inherited one wholesale, so every page spreads these in rather than losing its image.
-export const OG_IMAGES = [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Improvexus — Upwork bidding agency" }];
+export const OG_IMAGES = [{ url: "/opengraph-image", width: 1200, height: 630, alt: "Improvexus, an Upwork bidding agency" }];
 
 // What people actually type. Used for on-page copy decisions and the (low-weight) keywords tag.
 export const CORE_KEYWORDS = [

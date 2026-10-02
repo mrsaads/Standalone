@@ -47,7 +47,7 @@ export default async function PortalPage({
           <div className="ix-stack">
             <p className="ix-none">
               Enrolment is set up by an Improvexus account manager. There is no checkout and no
-              subscription unlocks it — and it is entirely separate from your audit plan.
+              subscription unlocks it. It is also completely separate from your audit plan.
             </p>
             <div><Link href="/" className="ix-btn ix-btn--secondary">Request management services</Link></div>
           </div>
@@ -169,8 +169,8 @@ export default async function PortalPage({
           description={activeProfile ? `Nothing has been published for ${activeProfile.name}.` : undefined}
         >
           <p className="ix-none">
-            Your first weekly report has not been published. You will get a notification here — and a
-            count in the header — as soon as it is.
+            Your first weekly report has not been published yet. As soon as it is, you will get a
+            notification here and a count in the header.
           </p>
         </Panel>
       ) : (

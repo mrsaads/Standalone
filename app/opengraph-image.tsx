@@ -2,7 +2,7 @@ import { ImageResponse } from "next/og";
 
 // The card shown when a page from this site is shared (WhatsApp, LinkedIn, X, Slack). Drawn in
 // code rather than shipped as a file, so it can never fall out of step with the brand.
-export const alt = "Improvexus — Upwork bidding agency";
+export const alt = "Improvexus, an Upwork bidding agency";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -16,9 +16,9 @@ export default function OpenGraphImage() {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           <div style={{ fontSize: 76, fontWeight: 700, lineHeight: 1.05, letterSpacing: -2 }}>Upwork bidding agency</div>
-          <div style={{ fontSize: 32, color: "#9a9aa3", lineHeight: 1.35, maxWidth: 940 }}>Dedicated Upwork bidders, evidence-based profile audits and weekly reporting.</div>
+          <div style={{ fontSize: 32, color: "#9a9aa3", lineHeight: 1.35, maxWidth: 940 }}>A dedicated Upwork bidder, a profile audit and a weekly report on your account.</div>
         </div>
-        <div style={{ fontSize: 22, color: "#6f6f76", letterSpacing: 4 }}>INNOVATE · OPTIMIZE · EXCEL</div>
+        <div style={{ fontSize: 22, color: "#6f6f76", letterSpacing: 4 }}>INNOVATE. OPTIMIZE. EXCEL.</div>
       </div>
     ),
     size,

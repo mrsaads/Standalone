@@ -50,7 +50,7 @@ export default function SignupPage() {
       <AuthShell title="Check your email">
         <p className="ix-subtitle">
           We sent a verification link to <strong style={{ color: "var(--ix-heading)" }}>{email}</strong>.
-          Open it to finish creating your account — you choose your own password, and nobody at
+          Open it to finish creating your account. You choose your own password, and nobody at
           Improvexus can see it.
         </p>
         {/* The resend lives HERE rather than on the sign-in page: this is the one moment where

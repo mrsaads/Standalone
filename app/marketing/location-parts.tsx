@@ -26,7 +26,7 @@ export function MarketTable({ placeName, tz, at }: { placeName: string; tz: stri
   return (
     <div className="ix-m-table-wrap" role="region" aria-label={`Client working hours in ${placeName} time`} tabIndex={0}>
       <table className="ix-m-table">
-        <caption>Times are {placeName} local time ({formatUtcOffset(utcOffsetMinutes(tz, at))}) and follow each market&apos;s current daylight-saving rules.</caption>
+        <caption>All times are shown in {placeName} local time ({formatUtcOffset(utcOffsetMinutes(tz, at))}) and already allow for daylight saving in each market.</caption>
         <thead>
           <tr><th scope="col">Client market</th><th scope="col">Their 9:00 am is</th><th scope="col">Their 5:00 pm is</th><th scope="col">For you that is</th></tr>
         </thead>
@@ -46,17 +46,17 @@ export function MarketTable({ placeName, tz, at }: { placeName: string; tz: stri
 }
 
 const PART_SENTENCE: Record<Daypart, string> = {
-  "working day": "That lands inside the local working day, so timing is on your side — the contest is on the quality of the proposal, not on who was awake.",
-  "evening": "That is the evening, just as most people are finishing for the day — the best jobs go up when you are least likely to be watching.",
-  "night": "That is the middle of the night. By the time the feed is checked in the morning, those jobs already have a queue of proposals in front of yours.",
-  "early morning": "That is before most people have started work, so the first hours of a new posting are usually missed.",
+  "working day": "That falls inside your own working day, so timing is on your side. What decides the job is how good the proposal is.",
+  "evening": "That's the evening, when most people are finishing for the day. The best jobs go up just when you're least likely to be watching.",
+  "night": "That's the middle of the night. By the time you check the feed in the morning, those jobs already have a queue of proposals ahead of yours.",
+  "early morning": "That's before most people have started work, so you usually miss the first hours of a new posting.",
 };
 
 /** A paragraph that is true for this place's clock and no other. */
 export function timingParagraph(placeName: string, tz: string, at: Date): string {
   const east = marketRows(tz, at)[0];
   if (east.same) {
-    return `${placeName} keeps the same hours as the US East Coast, where a large share of Upwork's clients post their jobs. You see new work the moment it appears — and so does everyone else in North America, which makes the first proposal a client reads the one that counts.`;
+    return `${placeName} keeps the same hours as the US East Coast, where a large share of Upwork's clients post their jobs. You see new work as soon as it appears, and so does everyone else in North America. That makes it important to be one of the first proposals the client reads.`;
   }
   return `When clients on the US East Coast start work at 9:00 am, it is ${east.start.label} in ${placeName}${DAY_NOTE[east.start.dayShift]}. ${PART_SENTENCE[east.part]}`;
 }
@@ -64,7 +64,7 @@ export function timingParagraph(placeName: string, tz: string, at: Date): string
 export function teamSentence(placeName: string, tz: string, at: Date): string {
   const difference = describeDifference(BUSINESS.timeZone, tz, at);
   return tidy(difference === "the same time as"
-    ? `Our team works on Pakistan Standard Time — the same clock as ${placeName}.`
+    ? `Our team works on Pakistan Standard Time, the same clock as ${placeName}.`
     : `Our team works on Pakistan Standard Time, which is ${difference} ${placeName}.`);
 }
 
@@ -79,8 +79,8 @@ export function ServiceChips() {
 // What a dedicated bidder does, stated once and reused — the country and city pages add the
 // place-specific detail around it rather than rewording this six different ways.
 export const BIDDER_POINTS = [
-  { title: "Targets before it bids", body: "A written targeting profile — categories, budget floor, client history, red flags — decides which jobs are worth your Connects." },
-  { title: "Covers the hours you can't", body: "The feed is watched across the time zones your clients post in, so good jobs are answered while they are new." },
-  { title: "Writes to the brief", body: "Each proposal opens on the client's problem and the piece of your past work that resembles it. No pasted templates." },
-  { title: "Shows you the record", body: "Every proposal, view, reply and interview is logged and reviewed weekly — counts, never projections." },
+  { title: "Picks the jobs first", body: "We agree a written targeting profile with you. It covers categories, your lowest budget, client history and warning signs, and it decides which jobs are worth your Connects." },
+  { title: "Covers the hours you can't", body: "Someone watches the feed across the time zones your clients post in, so good jobs get an answer while they're still new." },
+  { title: "Writes to the brief", body: "Each proposal opens with the client's problem and the piece of your past work that's closest to it. We don't paste templates." },
+  { title: "Shows you the record", body: "We log every proposal, view, reply and interview and go through them with you each week. You see real counts." },
 ];

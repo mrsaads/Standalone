@@ -72,7 +72,7 @@ export function entitlementFor(
 // here so the wording cannot drift between the two screens.
 export function entitlementLabel(plan: EffectivePlan): string {
   switch (plan) {
-    case "admin": return "Administrator — unlimited";
+    case "admin": return "Administrator (unlimited)";
     case "subscribed": return "Subscribed";
     case "admin_granted": return "Granted by Improvexus";
     default: return "Free";

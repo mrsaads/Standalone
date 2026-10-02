@@ -125,7 +125,7 @@ export function LeadForm({ source = "landing_general", sourcePage = "/", default
     if (!waCountry) found.whatsapp = "Choose the country code for your WhatsApp number.";
     else if (waNumber.replace(/\D/g, "").length < 4) found.whatsapp = "Enter your WhatsApp number.";
     if (!profileLink.trim()) found.profileLink = "Paste the link to your Upwork profile.";
-    if (goals.trim().length < GOALS_MIN) found.goals = `Tell us what you want help with — at least ${GOALS_MIN} characters, so we can give you a useful answer.`;
+    if (goals.trim().length < GOALS_MIN) found.goals = `Tell us a bit more about what you want help with. We need at least ${GOALS_MIN} characters to give you a useful answer.`;
     if (!consent) found.consent = "Please agree to share your details so Improvexus can contact you.";
     return found;
   }
@@ -163,8 +163,8 @@ export function LeadForm({ source = "landing_general", sourcePage = "/", default
     return (
       <div className="ix-l-enquiry-form ix-l-receipt" role="status" tabIndex={-1} ref={receiptRef} id="enquiry">
         <Check size={26} />
-        <strong>Your enquiry is saved.</strong>
-        <p style={{ color: "var(--ix-l-muted)", fontSize: 14 }}>Improvexus will review it and get back to you by email or WhatsApp. This does not book a call or confirm a service.</p>
+        <strong>We&apos;ve got your enquiry.</strong>
+        <p style={{ color: "var(--ix-l-muted)", fontSize: 14 }}>We&apos;ll read it and get back to you by email or WhatsApp. Sending this form doesn&apos;t book a call or confirm a service yet.</p>
         <p style={{ color: "var(--ix-l-muted-2)", fontSize: 12.5, marginTop: 10 }}>Reference: {receipt}</p>
       </div>
     );
@@ -229,7 +229,7 @@ export function LeadForm({ source = "landing_general", sourcePage = "/", default
 
       <div className="ix-l-field">
         <label htmlFor="lead-goals">What do you need help with?</label>
-        <Textarea id="lead-goals" required maxLength={1200} value={goals} onChange={e => { setGoals(e.target.value); clear("goals"); }} aria-invalid={!!fields.goals || undefined} aria-describedby={describe("goals")} placeholder="e.g. I send 15 proposals a week for CRM migration projects and get almost no replies." />
+        <Textarea id="lead-goals" required maxLength={1200} value={goals} onChange={e => { setGoals(e.target.value); clear("goals"); }} aria-invalid={!!fields.goals || undefined} aria-describedby={describe("goals")} placeholder="For example: I send 15 proposals a week for CRM migration projects and get almost no replies." />
         {goalsLength > 0 && goalsLength < GOALS_MIN && !fields.goals && <p className="ix-l-field-count" aria-live="polite">{GOALS_MIN - goalsLength} more character{GOALS_MIN - goalsLength === 1 ? "" : "s"} needed</p>}
         {fieldError("goals")}
       </div>

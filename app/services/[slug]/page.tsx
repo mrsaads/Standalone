@@ -68,7 +68,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <section className="ix-l-section" aria-labelledby="ix-problems">
           <div className="ix-l-section-head">
             <span>WHERE THINGS STAND TODAY</span>
-            <h2 id="ix-problems">What is usually holding the work back.</h2>
+            <h2 id="ix-problems">What&apos;s usually holding you back.</h2>
           </div>
           <div className={service.problems.length === 4 ? "ix-l-grid-2" : "ix-l-grid-3"}>
             {service.problems.map(problem => (
@@ -84,7 +84,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           <div className="ix-l-section-head">
             <span>THE STRATEGY</span>
             <h2 id="ix-strategy">How we improve your work, step by step.</h2>
-            <p>Each step ends with the thing that actually changes in your working week — that is the part that matters.</p>
+            <p>Under each step we tell you what changes in your own working week.</p>
           </div>
           <ol className="ix-m-strategy">
             {service.strategy.map(step => (
@@ -100,7 +100,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <section className="ix-l-section" aria-labelledby="ix-get">
           <div className="ix-l-section-head">
             <span>WHAT YOU RECEIVE</span>
-            <h2 id="ix-get">Concrete outputs, and how we know they worked.</h2>
+            <h2 id="ix-get">What you get, and how we check it worked.</h2>
           </div>
           <div className="ix-m-two">
             <div className="ix-m-panel">
@@ -121,7 +121,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         <section className="ix-l-section" aria-labelledby="ix-faq">
           <div className="ix-l-section-head">
             <span>QUESTIONS</span>
-            <h2 id="ix-faq">Straight answers.</h2>
+            <h2 id="ix-faq">Questions people ask us.</h2>
           </div>
           <div className="ix-m-faq">
             {service.faqs.map(faq => (
@@ -138,8 +138,8 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
             <div>
               <div className="ix-l-section-head" style={{ marginBottom: 20 }}>
                 <span>START HERE</span>
-                <h2 id="ix-start">Tell us where you are stuck.</h2>
-                <p>Send your profile link and what you want to improve. We read your profile before we reply, so the first answer you get is about your account — not a brochure.</p>
+                <h2 id="ix-start">Tell us where you&apos;re stuck.</h2>
+                <p>Send your profile link and what you want to improve. We read your profile before we reply, so the first answer you get is about your own account.</p>
               </div>
               <p className="ix-l-footer-head">Other ways we help</p>
               <ul className="ix-m-chips">
