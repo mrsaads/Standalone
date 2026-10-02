@@ -11,10 +11,22 @@ import {
   getShellNav,
 } from "@/lib/shell-data";
 import { AppShell, PageHead, Panel, StatCard, Stats, Tile, Tiles } from "./app-shell";
+import type { Metadata } from "next";
 import { LandingPage } from "./landing-page";
+import { JsonLd } from "./marketing/json-ld";
+import { faqSchema, organizationSchema, websiteSchema } from "@/lib/marketing/schema";
+import { HOME_FAQS } from "@/lib/marketing/home-faqs";
+import { HOME_DESCRIPTION, HOME_TITLE } from "@/lib/marketing/site";
 import { RequestManagementButton } from "./request-management";
 
 export const dynamic = "force-dynamic";
+
+// What a search engine sees: "/" is the public landing page for anyone who is not signed in.
+export const metadata: Metadata = {
+  title: { absolute: HOME_TITLE },
+  description: HOME_DESCRIPTION,
+  alternates: { canonical: "/" },
+};
 
 // The dashboard: the first screen after sign-in.
 //
@@ -39,7 +51,12 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const user = await getCurrentUser();
   // Signed out: show the public marketing landing page. "/" is a public path in middleware.ts, so a
   // visitor genuinely reaches this branch rather than being bounced.
-  if (!user) return <LandingPage />;
+  if (!user) return (
+    <>
+      <JsonLd data={[organizationSchema(), websiteSchema(), faqSchema(HOME_FAQS)]} />
+      <LandingPage />
+    </>
+  );
 
   const entitlement = entitlementFor(user);
   const { nav, workspaces } = await getShellNav(user);

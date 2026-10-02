@@ -593,13 +593,23 @@ export const leads = pgTable("leads", {
   email: text("email").notNull(),
   profileLink: text("profile_link").notNull().default(""),
   goals: text("goals").notNull().default(""),
-  source: text("source").notNull(), // "landing_audit" | "landing_client_portal" | "landing_general" | "client_portal_access_request"
+  // Contact numbers, stored as "+<country code> <number>" (see normalizePhone in lib/leads.ts).
+  // Blank only on rows that predate the fields becoming mandatory.
+  mobile: text("mobile").notNull().default(""),
+  whatsapp: text("whatsapp").notNull().default(""),
+  // ISO 3166-1 alpha-2 of the country picked for the mobile number — where the person actually is,
+  // which a shared calling code like +1 cannot tell you.
+  country: text("country").notNull().default(""),
+  // Path of the page the form was submitted from (e.g. /services/upwork-proposal-support).
+  sourcePage: text("source_page").notNull().default(""),
+  source: text("source").notNull(), // see LEAD_SOURCES in lib/leads.ts
   userId: uuid("user_id"), // set only for a signed-in user's access-request submission
   status: text("status").notNull().default("new"), // "new" | "reviewed" | "actioned"
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => [
   index("idx_leads_email_created").on(table.email, table.createdAt),
   index("idx_leads_status").on(table.status),
+  index("idx_leads_country").on(table.country),
 ]).enableRLS();
 
 // Abuse limits for auth emails (signup verification, resend, password reset) and failed logins —

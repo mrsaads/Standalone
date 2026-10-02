@@ -72,6 +72,13 @@ services:
       # optional security knobs and their defaults.
       - key: BROWSER_ID_SECRET
         sync: false
+      # Public site address for search engines (canonical URLs, sitemap, robots.txt). Set it when a
+      # custom domain is connected; until then the onrender.com URL is used. See .env.example for
+      # the other optional SEO settings (Search Console verification, business details).
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
+      - key: GOOGLE_SITE_VERIFICATION
+        sync: false
       # APP_ORIGIN is NOT required here: Render sets RENDER_EXTERNAL_URL automatically on every
       # service, and lib/delivery-worker.ts falls back to it when building the "your audit is
       # ready" email's report link. Only set APP_ORIGIN by hand if serving from a custom domain

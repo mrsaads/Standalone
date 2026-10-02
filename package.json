@@ -20,7 +20,9 @@
     "test:local:auth-throttle": "tsx scripts/local-tests/auth-throttle.local-test.mts",
     "test:local:admin-panel": "tsx scripts/local-tests/admin-panel.local-test.mts",
     "test:local:free-lock": "tsx scripts/local-tests/free-plan-lock.local-test.mts",
-    "seed:local-demo": "tsx scripts/seed-local-demo.mts"
+    "seed:local-demo": "tsx scripts/seed-local-demo.mts",
+    "test:local:lead-form": "tsx scripts/local-tests/lead-form.local-test.mts",
+    "test:local:marketing": "tsx scripts/local-tests/marketing-content.local-test.mts"
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",

@@ -18,7 +18,10 @@ const pg = postgres(process.env.DATABASE_URL!, { prepare: false, max: 1 });
 await pg`delete from auth_email_throttle`;
 
 const rules = emailRules();
-const t0 = new Date("2026-09-24T10:00:00Z");
+// "Now", not a fixed date: consume() occasionally sweeps throttle rows the DATABASE considers more
+// than two days old, so a hardcoded t0 starts deleting this test's own rows once that date passes.
+// Every assertion below is relative to t0, so nothing else changes.
+const t0 = new Date();
 const at = (minutes: number) => new Date(t0.getTime() + minutes * 60_000);
 const browser = (id: string): Bucket => ({ key: browserBucketKey(id), rule: rules.browser });
 const ip = (id: string): Bucket => ({ key: `email:ip:${id}`, rule: rules.ip });

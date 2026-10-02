@@ -12,7 +12,13 @@ import { BROWSER_ID_COOKIE, browserIdCookieOptions, mintBrowserId, verifyBrowser
 // visitors without also exposing anything private to them).
 // Every /api/auth/* route (signup, login, resend-verification, reset-password, email-quota) is
 // public by nature — each does its own origin check and abuse limiting.
-const publicPaths = ["/", "/login", "/signup", "/reset-password", "/verify", "/auth/callback", "/auth/confirm", "/api/auth", "/api/leads"];
+// The marketing pages (/services, /upwork-bidding-agency) and the files search engines fetch
+// (/robots.txt, /sitemap.xml, the social card) are public too — a crawler bounced to /login from
+// robots.txt or the sitemap never finds any of the pages those files exist to advertise.
+const publicPaths = [
+  "/", "/login", "/signup", "/reset-password", "/verify", "/auth/callback", "/auth/confirm", "/api/auth", "/api/leads",
+  "/services", "/upwork-bidding-agency", "/robots.txt", "/sitemap.xml", "/opengraph-image", "/twitter-image",
+];
 function isPublicPath(pathname: string) {
   return publicPaths.some(p => pathname === p || pathname.startsWith(`${p}/`));
 }

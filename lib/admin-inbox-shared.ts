@@ -8,6 +8,11 @@ export type AdminLeadRow = {
   id: string;
   name: string;
   email: string;
+  // "+<country code> <number>"; blank on enquiries that predate the fields becoming mandatory.
+  mobile: string;
+  whatsapp: string;
+  country: string; // ISO 3166-1 alpha-2, or "" when unknown
+  sourcePage: string;
   profileLink: string;
   goals: string;
   source: string;
@@ -31,6 +36,8 @@ export const LEAD_SOURCE_LABEL: Record<string, string> = {
   landing_audit: "Landing — free audit",
   landing_client_portal: "Landing — client portal",
   landing_general: "Landing — general enquiry",
+  landing_service: "Service page",
+  landing_location: "Location page",
   client_portal_access_request: "Portal access request",
 };
 

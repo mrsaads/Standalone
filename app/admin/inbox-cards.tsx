@@ -75,7 +75,7 @@ export function AdminInbox({
                       edge behind a horizontal scroll — on the one table whose whole purpose is to
                       be acted on. Name+email and source+date are paired into single cells instead. */}
                   <TableHead>Who</TableHead><TableHead>From</TableHead>
-                  <TableHead>Upwork profile</TableHead><TableHead>What they asked for</TableHead>
+                  <TableHead>Contact</TableHead><TableHead>What they asked for</TableHead>
                   <TableHead>Status</TableHead><TableHead>Action</TableHead>
                 </TableRow>
               </TableHeader>
@@ -89,14 +89,21 @@ export function AdminInbox({
                     </TableCell>
                     <TableCell className="text-xs">
                       <span className="block">{LEAD_SOURCE_LABEL[row.source] ?? row.source}</span>
+                      {row.sourcePage && row.sourcePage !== "/" && <span className="ix-muted-inline block">{row.sourcePage}</span>}
                       <span className="ix-muted-inline block">{new Date(row.createdAt).toLocaleString()}</span>
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate">
+                    <TableCell className="max-w-[220px] text-xs">
+                      {/* Numbers are what the person typed into a public form: tel:/wa.me links are
+                          built only from the digits, never from the raw text. */}
+                      {row.mobile && <a href={`tel:+${row.mobile.replace(/\D/g, "")}`} className="ix-link block whitespace-nowrap">{row.mobile}{row.country ? ` · ${row.country}` : ""}</a>}
+                      {row.whatsapp && <a href={`https://wa.me/${row.whatsapp.replace(/\D/g, "")}`} rel="noreferrer nofollow noopener" target="_blank" className="ix-link block whitespace-nowrap">WhatsApp {row.whatsapp === row.mobile ? "(same number)" : row.whatsapp}</a>}
+                      <span className="block truncate">
                       {/* A lead's link is text a stranger typed into a public form, so it never gets
                           a window handle onto this page — hence noopener alongside noreferrer. */}
                       {row.profileLink
                         ? <a href={row.profileLink} rel="noreferrer nofollow noopener" target="_blank" className="ix-link">{row.profileLink}</a>
-                        : "—"}
+                        : (row.mobile || row.whatsapp ? null : "—")}
+                      </span>
                     </TableCell>
                     <TableCell className="max-w-[300px] whitespace-pre-wrap text-xs">{row.goals || "—"}</TableCell>
                     <TableCell><Badge variant={statusVariant(row.status)}>{row.status}</Badge></TableCell>

@@ -43,6 +43,10 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },
+      // The signed-in app, the auth utility pages and the API must never appear in search results.
+      // (robots.txt only asks crawlers not to fetch; this header is what actually prevents indexing.)
+      ...["/api/:path*", "/admin/:path*", "/audits/:path*", "/audit/:path*", "/portal/:path*", "/client-portal/:path*", "/account/:path*", "/notifications/:path*", "/auth/:path*", "/verify", "/reset-password/:path*"]
+        .map(source => ({ source, headers: [{ key: "X-Robots-Tag", value: "noindex, nofollow" }] })),
     ];
   },
 };
