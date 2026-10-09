@@ -411,3 +411,52 @@
   .ix-locked-overlay { padding: 18px 16px; }
   .ix-locked-overlay .ix-btn-primary { width: 100%; }
 }
+
+/* ================================================================================================
+   ENQUIRY DIALOG ("Talk to Improvexus")
+   ================================================================================================
+   The enquiry form (app/enquiry.tsx) is older than the dark theme. Its own rules in results.css and
+   globals.css paint a white card with a dark-green button, and the dialog around it sets light
+   text, so the heading, labels, consent line and typed text came out light grey on white. These
+   rules are scoped to the dialog only and bring the form onto the same tokens as every other
+   dialog: no inner card, dark inputs, square corners, white primary button. */
+.ix-enquiry-dialog { max-width: 680px !important; max-height: calc(100vh - 32px); overflow-y: auto; }
+.ix-enquiry-dialog .enquiry-panel { background: transparent; border: 0; border-radius: 0; padding: 0; margin: 4px 0 0; max-width: none; color: var(--ix-text); }
+.ix-enquiry-dialog .enquiry-panel .section-title { align-items: flex-start; margin-bottom: 10px; }
+.ix-enquiry-dialog .enquiry-panel .eyebrow { color: var(--ix-muted); font-size: 11.5px; letter-spacing: .12em; font-weight: 600; }
+.ix-enquiry-dialog .enquiry-panel h2 { color: var(--ix-heading); font-size: 20px; font-weight: 600; line-height: 1.3; margin-top: 6px; letter-spacing: -.01em; }
+.ix-enquiry-dialog .enquiry-intro { color: var(--ix-muted); font-size: 14px; line-height: 1.6; margin: 0 0 22px; }
+.ix-enquiry-dialog .field > label { color: var(--ix-text); font-size: 13.5px; font-weight: 500; display: flex; align-items: center; gap: 4px; }
+.ix-enquiry-dialog .field > label > span:not(.optional) { color: var(--ix-muted); }
+.ix-enquiry-dialog .field > label .optional { color: var(--ix-muted); font-size: 12px; margin-left: 6px; }
+.ix-enquiry-dialog .field [data-slot=input],
+.ix-enquiry-dialog .field [data-slot=textarea],
+.ix-enquiry-dialog .full-select {
+  background: var(--ix-raised) !important; color: var(--ix-text); border: 1px solid var(--ix-border-input); border-radius: 0; font-size: 15px;
+}
+.ix-enquiry-dialog .field [data-slot=input]::placeholder,
+.ix-enquiry-dialog .field [data-slot=textarea]::placeholder { color: var(--ix-faint); }
+.ix-enquiry-dialog .field [data-slot=input]:focus-visible,
+.ix-enquiry-dialog .field [data-slot=textarea]:focus-visible,
+.ix-enquiry-dialog .full-select:focus-visible { border-color: var(--ix-text); box-shadow: 0 0 0 2px rgba(255,255,255,.15); outline: none; }
+.ix-enquiry-dialog .full-select [data-slot=select-value] { color: var(--ix-text); }
+.ix-enquiry-dialog .full-select svg { color: var(--ix-muted); opacity: 1; }
+.ix-enquiry-dialog .consent { color: var(--ix-text); font-size: 13.5px; line-height: 1.55; margin-top: 4px; }
+.ix-enquiry-dialog .consent [data-slot=checkbox] { border-color: var(--ix-border-input); border-radius: 0; }
+.ix-enquiry-dialog .field-help { color: var(--ix-muted); font-size: 12.5px; }
+.ix-enquiry-dialog .form-error { background: rgba(255,128,128,.08); border: 1px solid rgba(255,128,128,.4); color: var(--ix-danger); border-radius: 0; }
+.ix-enquiry-dialog .enquiry-panel .primary-button { background: #fff; color: #000; border: 1px solid #fff; border-radius: 0; font-weight: 500; min-height: 44px; }
+.ix-enquiry-dialog .enquiry-panel .primary-button:hover { background: #e2e2e2; }
+.ix-enquiry-dialog .enquiry-panel .primary-button:disabled { opacity: .6; }
+.ix-enquiry-dialog .enquiry-panel [data-variant=ghost] { color: var(--ix-muted); border-radius: 0; }
+.ix-enquiry-dialog .enquiry-panel [data-variant=ghost]:hover { color: var(--ix-text); background: rgba(255,255,255,.06); }
+.ix-enquiry-dialog .enquiry-panel [data-variant=outline] { background: transparent; color: var(--ix-text); border-color: var(--ix-border-strong); border-radius: 0; }
+.ix-enquiry-dialog .success-message p { color: var(--ix-muted); }
+.ix-enquiry-dialog .success-icon { background: rgba(110,231,168,.12); color: var(--ix-positive); border-radius: 0; }
+.ix-enquiry-dialog .receipt { color: var(--ix-text); }
+/* The select's dropdown is portalled to <body>, outside the dialog, so it is styled by its own class. */
+.ix-select-dark { background: var(--ix-surface) !important; color: var(--ix-text) !important; border: 1px solid var(--ix-border-input) !important; border-radius: 0 !important; }
+.ix-select-dark [data-slot=select-item] { color: var(--ix-text); border-radius: 0; }
+.ix-select-dark [data-slot=select-item][data-highlighted] { background: var(--ix-raised); color: var(--ix-heading); }
+/* The dialog already has its own close (×) in the corner; the form's inline "Close" would be a second one. */
+.ix-enquiry-dialog .enquiry-panel .section-title [data-variant=ghost] { display: none; }
