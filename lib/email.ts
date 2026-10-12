@@ -37,13 +37,28 @@ async function recordAttempt(params: { auditId: string | null; userEmail: string
   }
 }
 
+// Shared card shell for every app-sent email (table-based layout, inline styles only) so audit
+// notifications and any future promotional send look like the same product as the Supabase auth
+// emails (confirm signup / reset password) configured separately in the Supabase dashboard. Kept
+// as plain functions rather than a template engine since there are only two callers.
+function emailShell(bodyRows: string) {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 16px;font-family:Arial,Helvetica,sans-serif;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" style="max-width:480px;background-color:#ffffff;border:1px solid #e5e5e8;border-radius:12px;padding:32px;">
+        <tr><td style="font-size:15px;font-weight:700;color:#0b0b0d;letter-spacing:-0.2px;padding-bottom:24px;">Improvexus</td></tr>
+        ${bodyRows}
+      </table>
+    </td></tr>
+  </table>`;
+}
+
 function auditReadyHtml(profileName: string, reportUrl: string) {
-  return `<div style="font-family:Arial,Helvetica,sans-serif;max-width:520px;margin:0 auto;padding:24px;color:#1b1f2a">
-    <h1 style="font-size:18px;margin-bottom:4px">Your Improvexus audit is ready</h1>
-    <p style="font-size:14px;line-height:1.6;color:#444">Your Upwork profile audit${profileName ? ` for <strong>${profileName}</strong>` : ""} has finished generating. Sign in to review the full breakdown and download your PDF or Word report.</p>
-    <p style="margin:24px 0"><a href="${reportUrl}" style="background:#1b1f2a;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-size:14px">View my audit</a></p>
-    <p style="font-size:12px;color:#888">Improvexus — Profile Growth &amp; Positioning Audit</p>
-  </div>`;
+  return emailShell(`
+    <tr><td style="font-size:20px;font-weight:700;color:#0b0b0d;padding-bottom:12px;">Your audit is ready</td></tr>
+    <tr><td style="font-size:14px;line-height:1.6;color:#4a4a52;padding-bottom:24px;">Your Upwork profile audit${profileName ? ` for <strong>${profileName}</strong>` : ""} is done. Sign in to see the full breakdown and download your PDF or Word report.</td></tr>
+    <tr><td style="padding-bottom:24px;"><a href="${reportUrl}" style="display:inline-block;background-color:#0b0b0d;color:#ffffff;padding:12px 28px;border-radius:999px;text-decoration:none;font-size:14px;font-weight:700;">View my audit</a></td></tr>
+    <tr><td style="font-size:12px;color:#9a9aa3;">Improvexus — Profile Growth &amp; Positioning Audit</td></tr>
+  `);
 }
 
 // Sends (or retries) the "your audit is ready" notification for one audit. Two independent layers
