@@ -3,6 +3,13 @@ import { and, eq, gte, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { profileAudits, profiles } from "@/db/schema";
 import type { AppUser } from "@/lib/auth";
+import { effectivePlan, monthlyAuditLimit } from "@/lib/entitlements";
+
+// The rolling window the per-plan monthly allowance (lib/entitlements.ts's monthlyAuditLimit) is
+// counted over: free = 1 audit / 30 days, subscriber = 4 / 30 days, admin = unlimited. Rolling
+// rather than calendar-month, same pattern the old flat "1 per 7 days" rule used, so it needs no
+// cron to reset — a slot simply ages out of the window.
+const ALLOWANCE_WINDOW_DAYS = 30;
 
 // How long a "reserved" row (AI call in flight, no report yet) is still treated as holding the
 // weekly slot. Must comfortably exceed the worst-case AI call: two attempts (the schema-retry in
@@ -13,10 +20,10 @@ import type { AppUser } from "@/lib/auth";
 // check below is correct on its own even before the reaper gets around to that.
 export const RESERVATION_STALE_MINUTES = 10;
 
-export class WeeklyLimitError extends Error {
+export class AuditLimitError extends Error {
   constructor() {
-    super("WEEKLY_AUDIT_LIMIT");
-    this.name = "WeeklyLimitError";
+    super("AUDIT_LIMIT");
+    this.name = "AuditLimitError";
   }
 }
 
@@ -33,9 +40,10 @@ export class ReservationLostError extends Error {
   }
 }
 
-// A row counts against the weekly allowance if it's billable AND either genuinely completed, or
-// still a live (non-stale) reservation. A "reserved" row older than RESERVATION_STALE_MINUTES is
-// treated as abandoned here — not blocking — independent of whether the reaper has swept it yet.
+// A row counts against the plan's monthly allowance if it's billable AND either genuinely
+// completed, or still a live (non-stale) reservation. A "reserved" row older than
+// RESERVATION_STALE_MINUTES is treated as abandoned here — not blocking — independent of whether
+// the reaper has swept it yet.
 function activeReservationSql() {
   return sql`(status = 'completed' or (status = 'reserved' and updated_at > now() - interval '${sql.raw(String(RESERVATION_STALE_MINUTES))} minutes'))`;
 }
@@ -44,7 +52,7 @@ function recentAllowanceCondition(userId: string) {
   return and(
     eq(profileAudits.userId, userId),
     eq(profileAudits.billable, true),
-    gte(profileAudits.createdAt, sql`now() - interval '7 days'`),
+    gte(profileAudits.createdAt, sql`now() - interval '${sql.raw(String(ALLOWANCE_WINDOW_DAYS))} days'`),
     activeReservationSql(),
   );
 }
@@ -53,19 +61,19 @@ function recentAllowanceCondition(userId: string) {
 // NOT the race-safe enforcement — see reserveAuditSlot() below — it exists purely so an
 // already-over-limit customer gets an immediate, cheap rejection instead of waiting on profile
 // import first.
-export async function precheckWeeklyLimit(user: AppUser) {
-  if (user.role === "admin") return;
+export async function precheckAuditLimit(user: AppUser) {
+  const limit = monthlyAuditLimit(effectivePlan(user));
+  if (limit === null) return; // admin: unlimited
   const db = getDb();
-  const [recent] = await db.select({ id: profileAudits.id }).from(profileAudits)
-    .where(recentAllowanceCondition(user.id))
-    .limit(1);
-  if (!recent) return;
-  // The weekly allowance is spent, but an admin-granted credit can still admit this request. Read
-  // the live value rather than trusting the `user` snapshot, which may be seconds stale.
-  const [row] = await db.select({ granted: profiles.auditCredits, used: profiles.auditCreditsUsed })
-    .from(profiles).where(eq(profiles.id, user.id)).limit(1);
-  if ((row?.granted ?? 0) - (row?.used ?? 0) > 0) return;
-  throw new WeeklyLimitError();
+  const recent = await db.select({ id: profileAudits.id }).from(profileAudits).where(recentAllowanceCondition(user.id));
+  if (recent.length < limit) return;
+  // The plan's monthly allowance is already used up for this window — but an admin may have
+  // granted this account (typically a managed client) extra one-off credits, configured
+  // per-account rather than via any paid plan (see profiles.bonusAuditCredits). This is a fast,
+  // non-authoritative pre-check only; the real race-safe spend happens inside reserveAuditSlot()'s
+  // transaction below.
+  const [row] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, user.id)).limit(1);
+  if (!row || row.bonusAuditCredits <= 0) throw new AuditLimitError();
 }
 
 // The real enforcement, and the fix for "reserve the allowance before AI generation starts":
@@ -87,25 +95,24 @@ export async function precheckWeeklyLimit(user: AppUser) {
 export async function reserveAuditSlot(user: AppUser, profileKey: string, contentHash: string, profileUrl: string) {
   const db = getDb();
   const leaseToken = randomUUID();
-  const result = await db.transaction(async tx => {
-    let creditSpent = false;
-    if (user.role !== "admin") {
+  const limit = monthlyAuditLimit(effectivePlan(user));
+  const auditId = await db.transaction(async tx => {
+    let usedBonusCredit = false;
+    if (limit !== null) {
+      // Holding this per-user advisory lock across both the "is the plan's monthly allowance
+      // still free" check AND (when it isn't) the bonus-credit decrement is what makes the
+      // decrement itself race-safe — two concurrent requests from the same account can never both
+      // read the same bonusAuditCredits value and both spend it, the same guarantee this lock
+      // already gave the allowance check.
       await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.id}))`);
-      const [recent] = await tx.select({ id: profileAudits.id }).from(profileAudits)
-        .where(recentAllowanceCondition(user.id))
-        .limit(1);
-      if (recent) {
-        // The rolling weekly allowance is already spent. Fall back to an admin-granted credit if
-        // one is left. The increment happens inside the SAME advisory-lock-guarded transaction as
-        // the reservation insert, and the `used < granted` predicate is evaluated by Postgres as
-        // part of the UPDATE — so two concurrent requests can never both consume the last credit:
-        // whichever commits second matches zero rows and is rejected.
-        const spent = await tx.update(profiles)
-          .set({ auditCreditsUsed: sql`${profiles.auditCreditsUsed} + 1` })
-          .where(and(eq(profiles.id, user.id), sql`${profiles.auditCreditsUsed} < ${profiles.auditCredits}`))
+      const recent = await tx.select({ id: profileAudits.id }).from(profileAudits).where(recentAllowanceCondition(user.id));
+      if (recent.length >= limit) {
+        const [spent] = await tx.update(profiles)
+          .set({ bonusAuditCredits: sql`${profiles.bonusAuditCredits} - 1` })
+          .where(and(eq(profiles.id, user.id), sql`${profiles.bonusAuditCredits} > 0`))
           .returning({ id: profiles.id });
-        if (spent.length === 0) throw new WeeklyLimitError();
-        creditSpent = true;
+        if (!spent) throw new AuditLimitError();
+        usedBonusCredit = true;
       }
     }
     const [inserted] = await tx.insert(profileAudits).values({
@@ -117,11 +124,11 @@ export async function reserveAuditSlot(user: AppUser, profileKey: string, conten
       billable: true,
       status: "reserved",
       leaseToken,
-      creditSpent,
+      usedBonusCredit,
     }).returning({ id: profileAudits.id });
-    return { id: inserted.id, creditSpent };
+    return inserted.id;
   });
-  return { auditId: result.id, leaseToken, creditSpent: result.creditSpent };
+  return { auditId, leaseToken };
 }
 
 // Call at natural checkpoints during the live AI call (this route retries the provider at most
@@ -186,24 +193,13 @@ export async function completeReservation(auditId: string, leaseToken: string, p
 // turns out to already be released.
 export async function releaseReservation(auditId: string, leaseToken: string) {
   const db = getDb();
-  await db.transaction(async tx => {
-    // The `returning` is what makes the refund below safe: it tells us whether THIS call is the one
-    // that actually released the row. A second, racing release (or a late call from a reservation
-    // that was already reaped) matches zero rows, so it cannot trigger a second refund of the same
-    // credit.
-    const released = await tx.update(profileAudits)
-      .set({ status: "failed", billable: false, updatedAt: new Date() })
-      .where(and(eq(profileAudits.id, auditId), eq(profileAudits.leaseToken, leaseToken), eq(profileAudits.status, "reserved")))
-      .returning({ userId: profileAudits.userId, creditSpent: profileAudits.creditSpent });
-    const row = released[0];
-    if (!row?.creditSpent) return;
-
-    // Refund the one credit this reservation consumed. A failed generation — an AI outage, invalid
-    // model output, a storage error — must not cost the customer an allowance, and that has to hold
-    // for credits exactly as it already holds for the weekly slot. `greatest(..., 0)` is a floor
-    // against ever driving the counter negative if this were somehow reached twice.
-    await tx.update(profiles)
-      .set({ auditCreditsUsed: sql`greatest(${profiles.auditCreditsUsed} - 1, 0)` })
-      .where(eq(profiles.id, row.userId));
-  });
+  const [row] = await db.update(profileAudits).set({ status: "failed", billable: false, updatedAt: new Date() })
+    .where(and(eq(profileAudits.id, auditId), eq(profileAudits.leaseToken, leaseToken), eq(profileAudits.status, "reserved")))
+    .returning({ userId: profileAudits.userId, usedBonusCredit: profileAudits.usedBonusCredit });
+  // A failed generation must never cost the account anything — including a bonus credit that was
+  // spent (instead of the weekly slot) to admit this reservation in the first place. This mirrors
+  // exactly why `billable` is flipped to false above for the weekly slot.
+  if (row?.usedBonusCredit) {
+    await db.update(profiles).set({ bonusAuditCredits: sql`${profiles.bonusAuditCredits} + 1` }).where(eq(profiles.id, row.userId));
+  }
 }

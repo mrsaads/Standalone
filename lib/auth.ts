@@ -2,8 +2,7 @@ import { createSupabaseServerClient } from "./supabase/server";
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
 import { eq } from "drizzle-orm";
-
-import type { AuditEntitlement } from "./entitlements";
+import { isSubscriptionExpired } from "./entitlements";
 
 export type AppUser = {
   id: string; // Supabase auth.users.id
@@ -11,20 +10,27 @@ export type AppUser = {
   fullName: string;
   mobile: string;
   upworkLink: string;
-  // AXIS 1 — account role.
   role: "base" | "admin";
-  // AXIS 2 — audit entitlement. Manually set by an admin from the admin panel (see
-  // lib/entitlements.ts) — irrelevant for an admin account, which always gets full audit access
-  // regardless of this value. Deliberately says nothing about managed-client access (AXIS 3),
-  // which is not carried on AppUser at all: it is per-workspace, so it is resolved per request by
-  // lib/workspace-access.ts rather than being a property of the user.
-  auditEntitlement: AuditEntitlement;
-  auditCredits: number;
-  auditCreditsUsed: number;
-  marketingOptIn: boolean;
+  // Manually set by an admin from the admin panel (see lib/entitlements.ts) — irrelevant for an
+  // admin account, which always gets full access regardless of this value. This is the RAW stored
+  // value; a "subscriber" row whose planUpdatedAt is more than 30 days old is already normalized to
+  // "free" by the time this object is built (see the write-back below) — effectivePlan() in
+  // lib/entitlements.ts re-derives the same thing from planUpdatedAt as a defense-in-depth check,
+  // but callers reading `plan` directly off AppUser can trust it's already current.
+  plan: "free" | "subscriber";
+  // When `plan` was last set — the start of the current 30-day subscription grant. See
+  // SUBSCRIPTION_PERIOD_DAYS in lib/entitlements.ts.
+  planUpdatedAt: Date;
+  // Routing hint only — see lib/destination.ts. "" means no stored preference yet.
+  preferredDestination: "" | "audit" | "client_portal";
 };
 
-function isAdminEmail(email: string): boolean {
+// The ONLY account that can ever be admin purely by configuration — matching this env var is what
+// makes an account the "super admin" who can grant or revoke admin access for anyone else (see
+// app/api/admin/users/[id]/role/route.ts). Everyone else's admin status lives in profiles.role,
+// which only that super-admin endpoint can change. Exported so the signup route and the role-grant
+// endpoint share this exact check rather than keeping their own copies that can drift apart.
+export function isAdminEmail(email: string): boolean {
   const admins = (process.env.ADMIN_EMAILS || "").split(",").map(v => v.trim().toLowerCase()).filter(Boolean);
   return admins.includes(email.toLowerCase());
 }
@@ -41,8 +47,23 @@ export async function getCurrentUser(): Promise<AppUser | null> {
   const db = getDb();
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, user.id)).limit(1);
 
+  let plan: "free" | "subscriber" = profile?.plan === "subscriber" ? "subscriber" : "free";
+  let planUpdatedAt = profile?.planUpdatedAt ?? new Date(0);
+  if (plan === "subscriber" && isSubscriptionExpired(planUpdatedAt)) {
+    // The 30-day grant ran out. Degrade this session to free immediately (never wait on a cron that
+    // doesn't exist), and best-effort write it back so profiles.plan stops lying to the admin
+    // panel's own direct query (app/admin/page.tsx) the next time this account is active. Never
+    // blocks sign-in if the write fails.
+    plan = "free";
+    try {
+      planUpdatedAt = new Date();
+      await db.update(profiles).set({ plan: "free", planUpdatedAt }).where(eq(profiles.id, user.id));
+    } catch (writeError) {
+      console.error("Subscription expiry write-back failed", writeError instanceof Error ? writeError.name : "UnknownError");
+    }
+  }
+
   const admin = isAdminEmail(user.email) || profile?.role === "admin";
-  const stored = profile?.auditEntitlement;
   return {
     id: user.id,
     email: user.email,
@@ -50,12 +71,9 @@ export async function getCurrentUser(): Promise<AppUser | null> {
     mobile: profile?.mobile || "",
     upworkLink: profile?.upworkLink || "",
     role: admin ? "admin" : "base",
-    // Anything unrecognized falls back to the least-privileged value rather than being trusted —
-    // a typo or a future value this build doesn't know about must never read as more access.
-    auditEntitlement: stored === "subscribed" || stored === "admin_granted" ? stored : "free",
-    auditCredits: profile?.auditCredits ?? 0,
-    auditCreditsUsed: profile?.auditCreditsUsed ?? 0,
-    marketingOptIn: profile?.marketingOptIn ?? true,
+    plan,
+    planUpdatedAt,
+    preferredDestination: profile?.preferredDestination === "audit" || profile?.preferredDestination === "client_portal" ? profile.preferredDestination : "",
   };
 }
 

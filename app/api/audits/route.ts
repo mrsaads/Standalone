@@ -6,24 +6,11 @@ import { referenceValid, canonicalOrder, summarize } from "@/lib/audit-preview";
 import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
-import { precheckWeeklyLimit, reserveAuditSlot, renewReservationLease, completeReservation, releaseReservation, WeeklyLimitError, ReservationLostError } from "@/lib/audit-limit";
+import { precheckAuditLimit, reserveAuditSlot, renewReservationLease, completeReservation, releaseReservation, AuditLimitError, ReservationLostError } from "@/lib/audit-limit";
 import { enqueueDelivery } from "@/lib/delivery-worker";
 import { isTrustedOrigin } from "@/lib/http";
 import { fetchUpworkProfile } from "@/lib/upwork-fetch";
-import { entitlementFor } from "@/lib/entitlements";
-import { applyAuditAccess } from "@/lib/audit-access";
-
-// What a free account receives over the wire is decided in lib/audit-access.ts — one finding per
-// profile area, the score and its counts, and the name of the biggest flaw; everything else removed
-// from the object before it is serialized.
-//
-// The FULL report is always written to the database as-is, so an upgrade later reveals the rest
-// without regenerating anything. What changes is only what leaves the server.
-//
-// This used to be a local two-line function that blanked the optimization fields. It moved because
-// the same redaction has to run on the reopen route as well (app/api/audits/[id]/route.ts, which
-// backs the "audit ready" email's ?openAudit= link) — two copies of a paywall is one copy that
-// eventually stops matching the other.
+import { entitlementFor, applyReportEntitlement, monthlyAuditLimit } from "@/lib/entitlements";
 
 const requestSchema = z.object({
   profileText: z.string().max(40000),
@@ -63,11 +50,11 @@ async function sha256(value: string) {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
 }
 
-// The weekly-allowance reservation and completion logic (reserve-before-AI-call, complete-on-
-// success, release-on-failure, advisory-lock-guarded, race-safe) now lives in lib/audit-limit.ts —
-// see that file for the full explanation. This route only calls it at the right three points:
-// precheckWeeklyLimit() before doing any work, reserveAuditSlot() right before the AI call,
-// completeReservation()/releaseReservation() right after it.
+// The plan-based monthly-allowance reservation and completion logic (reserve-before-AI-call,
+// complete-on-success, release-on-failure, advisory-lock-guarded, race-safe) now lives in
+// lib/audit-limit.ts — see that file for the full explanation. This route only calls it at the
+// right three points: precheckAuditLimit() before doing any work, reserveAuditSlot() right before
+// the AI call, completeReservation()/releaseReservation() right after it.
 async function touchProfile(userId: string) {
   const db = getDb();
   await db.update(profiles).set({ lastSeenAt: new Date() }).where(eq(profiles.id, userId));
@@ -77,8 +64,8 @@ async function touchProfile(userId: string) {
 // the no-credit preview endpoint, app/api/profile-preview/route.ts) that keeps this call site's
 // existing throw-to-422 contract: only a "success" or "partial" outcome (real, readable profile
 // text) may reach the AI call below. Every other outcome — blocked/unavailable/timeout/parse_failed/
-// invalid — throws here, which the caller turns into a 422 *before* precheckWeeklyLimit/
-// reserveAuditSlot run, so a failed or blocked import never touches the weekly allowance or an AI
+// invalid — throws here, which the caller turns into a 422 *before* precheckAuditLimit/
+// reserveAuditSlot run, so a failed or blocked import never touches the monthly allowance or an AI
 // provider (see the POST handler below).
 async function tryPublicProfile(url: string) {
   const result = await fetchUpworkProfile(url);
@@ -105,7 +92,6 @@ Also provide, following the same profile-specific standard as every finding:
 - whyThisComesFirst: one concise paragraph explaining, in this profile's own terms, why biggestFlaw outranks every other finding here. It must follow from the findings above, not restate a template explanation.
 - alreadyWorking: one concise paragraph naming only findings you marked pass with real supporting evidence. If no finding is a clean pass, say plainly that no criterion currently has strong enough evidence to count as a confirmed strength — never soften or reclassify a weak or fail finding into a strength just to fill this section.
 If web research is available, use it only for current niche terminology or external positioning context. Never claim that external research verifies the freelancer's private performance. Include only research URLs actually consulted.
-Writing style for every note, action, priority, summary, headline and overview you write: plain everyday English, the way an experienced consultant would explain it to a client in person. Use short, complete sentences and ordinary words. Do not use em dashes or en dashes; end the sentence or use a comma. Do not use semicolons, slashes between alternatives, or "not X but Y" constructions. Do not use stock phrases such as "leverage", "elevate", "unlock", "seamless", "robust", "tailored", "in today's", "stand out from the crowd" or "take it to the next level". Do not open with praise and do not end with a slogan. Text quoted as evidence from the profile must stay exactly as it appears in the source.
 Return only the requested JSON object. Do not use markdown.`;
 
 function makePrompt(input: z.infer<typeof requestSchema>, profileText: string) {
@@ -301,9 +287,14 @@ export async function POST(request: Request) {
 
   // Cheap pre-check first: an already-over-limit customer gets a clear, immediate rejection
   // without us reserving anything or touching the AI provider.
-  try { await precheckWeeklyLimit(user); }
+  const entitlementForLimitMessage = entitlementFor(user);
+  const planLimit = monthlyAuditLimit(entitlementForLimitMessage.plan);
+  const limitMessage = planLimit === null
+    ? "Usage information is temporarily unavailable."
+    : `Your ${entitlementForLimitMessage.plan} plan includes ${planLimit} audit${planLimit === 1 ? "" : "s"} every 30 days. Admin accounts have unlimited access.`;
+  try { await precheckAuditLimit(user); }
   catch (error) {
-    if (error instanceof WeeklyLimitError) return json({ error: "Your base account includes one audit every seven days. Admin accounts have unlimited access." }, 429);
+    if (error instanceof AuditLimitError) return json({ error: limitMessage }, 429);
     return json({ error: "Usage information is temporarily unavailable." }, 503);
   }
 
@@ -315,7 +306,7 @@ export async function POST(request: Request) {
   let leaseToken: string;
   try { ({ auditId, leaseToken } = await reserveAuditSlot(user, profileKey, contentHash, parsed.data.profileUrl)); }
   catch (error) {
-    if (error instanceof WeeklyLimitError) return json({ error: "Your base account includes one audit every seven days, and another request for this account just used it. Admin accounts have unlimited access." }, 429);
+    if (error instanceof AuditLimitError) return json({ error: `${limitMessage} Another request for this account just used the remaining allowance.` }, 429);
     console.error("Audit reservation failed", error instanceof Error ? error.name : "UnknownError");
     return json({ error: "Usage information is temporarily unavailable." }, 503);
   }
@@ -397,13 +388,11 @@ export async function POST(request: Request) {
     catch (enqueueError) { console.error("Delivery enqueue failed", enqueueError instanceof Error ? enqueueError.name : "UnknownError"); }
 
     const entitlement = entitlementFor(user);
-    const { audit, access } = applyAuditAccess(report, entitlement);
     return json({
-      audit,
-      access,
+      audit: applyReportEntitlement(report, entitlement),
       auditId,
       entitlement,
-      account: { role: user.role, plan: entitlement.plan, weeklyLimit: user.role === "admin" ? null : 1, creditsRemaining: entitlement.creditsRemaining },
+      account: { role: user.role, plan: entitlement.plan, monthlyLimit: monthlyAuditLimit(entitlement.plan) },
     });
   } catch (error) {
     if (error instanceof ReservationLostError) {

@@ -3,8 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import { getDb } from "@/db";
 import { profileAudits } from "@/db/schema";
 import type { AuditReport } from "@/lib/audit-report";
-import { entitlementFor } from "@/lib/entitlements";
-import { applyAuditAccess } from "@/lib/audit-access";
+import { entitlementFor, applyReportEntitlement } from "@/lib/entitlements";
 
 const headers = { "Cache-Control": "no-store" };
 
@@ -26,11 +25,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (row.status !== "completed") return Response.json({ error: "This audit has not finished generating." }, { status: 409, headers });
   const report = JSON.parse(row.reportJson) as AuditReport;
   const entitlement = entitlementFor(user);
-  // The SAME redaction as the generation endpoint, from the same function — this route is how the
-  // "audit ready" email's ?openAudit= link and the saved-audits list reopen a report, so a free
-  // account that generated an audit while paying, or that simply keeps the old link, must get the
-  // same limited payload here. A paywall applied on generation but not on reopen is a paywall with
-  // a permanent URL past it sitting in somebody's inbox.
-  const { audit, access } = applyAuditAccess(report, entitlement);
-  return Response.json({ audit, access, entitlement }, { headers });
+  // Same shared redaction the generation endpoint uses (app/api/audits/route.ts, via
+  // lib/entitlements.ts's applyReportEntitlement) — this is how the "audit ready" email's
+  // ?openAudit= link and the saved-audits list reopen a report, so it must apply the exact same
+  // optimization- and findings-gating, not a separately hand-maintained copy that can drift.
+  const audit = applyReportEntitlement(report, entitlement);
+  return Response.json({ audit, entitlement }, { headers });
 }
