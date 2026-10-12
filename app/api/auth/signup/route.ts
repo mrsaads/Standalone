@@ -65,6 +65,20 @@ export async function POST(request: Request) {
     return json({ error: "Signup could not be completed. Please try again." }, 500);
   }
 
+  // Supabase's own anti-enumeration behavior: calling signUp() for an email that ALREADY has a
+  // confirmed account does not error. It returns 200 with a real user object (the EXISTING
+  // account's real id, not a new one) but an empty `identities` array — that empty array is the
+  // only signal that this wasn't a new signup. Before this check, that fell straight through to
+  // the profiles upsert below, which is keyed on `data.user.id` with onConflictDoUpdate — so
+  // re-submitting the signup form with someone else's email silently overwrote that real
+  // account's fullName/mobile/upworkLink, no login required. A still-unconfirmed existing email
+  // (someone who signed up but never clicked the link) keeps a populated `identities` array and
+  // correctly falls through to resend the verification email below.
+  if ((data.user.identities?.length ?? 0) === 0) {
+    await refund(guard.buckets).catch(() => {});
+    return json({ error: "An account with this email already exists. Sign in instead, or reset your password if you forgot it." }, 409);
+  }
+
   // Store the extended profile fields (mobile, Upwork link) immediately, keyed to the new
   // auth.users id. getDb() connects directly to Postgres (not through PostgREST), so this insert
   // runs before the customer has any session — exactly what's needed since email confirmation

@@ -47,12 +47,20 @@ export default function SignupPage() {
 
   if (done) {
     return (
-      <AuthShell title="Check your email">
-        <p className="ix-subtitle">
-          We sent a verification link to <strong style={{ color: "var(--ix-heading)" }}>{email}</strong>.
-          Open it to finish creating your account. You choose your own password, and nobody at
-          Improvexus can see it.
-        </p>
+      <AuthShell
+        title="Check your email"
+        // Was passed as a plain child before, with a stray `var(--ix-heading)` that isn't a
+        // defined custom property anywhere in auth.css (the real one is --ix-a-fg). Two effects:
+        // the color fix was a no-op (the .ix-subtitle strong rule already sets the right color),
+        // but placing it outside AuthShell's heading block meant it picked up the 22px gap
+        // .ix-auth__col uses between sections instead of the 8px gap every other auth screen's
+        // title+subtitle pair uses — this is the "alignment" the spacing looked off on. Passing
+        // it as `subtitle` puts it back inside .ix-auth__heading with the rest.
+        subtitle={<>
+          We sent a verification link to <strong>{email}</strong>. Open it to finish creating your
+          account. You choose your own password, and nobody at Improvexus can see it.
+        </>}
+      >
         {/* The resend lives HERE rather than on the sign-in page: this is the one moment where
             somebody genuinely has a missing verification email and nothing else to do about it. */}
         <p className="ix-auth__links">
