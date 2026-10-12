@@ -59,7 +59,7 @@ function runChild(mode: string, env: Record<string, string>): Promise<{ stdout: 
 async function main() {
   const db = getDb();
   const userId = randomUUID();
-  const user: AppUser = { id: userId, email: "local-restart-test@example.com", role: "base", plan: "free", planUpdatedAt: new Date(), fullName: "", mobile: "", upworkLink: "", preferredDestination: "" };
+  const user: AppUser = { id: userId, email: "local-restart-test@example.com", role: "base", auditEntitlement: "free", auditCredits: 0, auditCreditsUsed: 0, marketingOptIn: true, fullName: "", mobile: "", upworkLink: "" };
   await db.execute(sql`insert into auth.users (id) values (${userId})`);
   await db.insert(profiles).values({ id: userId, email: user.email, role: "base" });
 

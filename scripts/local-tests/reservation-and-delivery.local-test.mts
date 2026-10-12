@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { getDb } from "../../db";
 import { profiles, profileAudits, deliveryJobs, emailNotifications } from "../../db/schema";
-import { reserveAuditSlot, renewReservationLease, completeReservation, releaseReservation, precheckAuditLimit, AuditLimitError, ReservationLostError, RESERVATION_STALE_MINUTES } from "../../lib/audit-limit";
+import { reserveAuditSlot, renewReservationLease, completeReservation, releaseReservation, precheckWeeklyLimit, WeeklyLimitError, ReservationLostError, RESERVATION_STALE_MINUTES } from "../../lib/audit-limit";
 import { enqueueDelivery, claimNextJob, reapAbandonedReservations } from "../../lib/delivery-worker";
 import { sendAuditReadyEmail } from "../../lib/email";
 import type { AppUser } from "../../lib/auth";
@@ -53,9 +53,9 @@ async function main() {
     const results = await Promise.allSettled(Array.from({ length: N }, () => reserveAuditSlot(user, "profile-a", "hash-a", "")));
     const elapsedMs = Date.now() - started;
     const succeeded = results.filter(r => r.status === "fulfilled");
-    const rejectedWithLimit = results.filter(r => r.status === "rejected" && (r.reason as Error) instanceof AuditLimitError);
+    const rejectedWithLimit = results.filter(r => r.status === "rejected" && (r.reason as Error) instanceof WeeklyLimitError);
     assert(succeeded.length === 1, `exactly 1 of ${N} concurrent requests reserved the slot (got ${succeeded.length})`);
-    assert(rejectedWithLimit.length === N - 1, `the other ${N - 1} were rejected as AuditLimitError (got ${rejectedWithLimit.length})`);
+    assert(rejectedWithLimit.length === N - 1, `the other ${N - 1} were rejected as WeeklyLimitError (got ${rejectedWithLimit.length})`);
     assert(elapsedMs < 2000, `all ${N} concurrent attempts resolved quickly (${elapsedMs}ms) — the advisory lock serializes them but doesn't hang`);
   }
 
@@ -72,8 +72,8 @@ async function main() {
     try { await reserveAuditSlot(user, "profile-b", "hash-b", ""); }
     catch (error) {
       const elapsed = Date.now() - secondAttemptStarted;
-      secondFailedFast = error instanceof AuditLimitError && elapsed < 300;
-      assert(error instanceof AuditLimitError, "second concurrent request was correctly rejected");
+      secondFailedFast = error instanceof WeeklyLimitError && elapsed < 300;
+      assert(error instanceof WeeklyLimitError, "second concurrent request was correctly rejected");
       assert(elapsed < 300, `second request rejected in ${elapsed}ms, not held for the ~1500ms simulated AI call (proves the lock isn't held across it)`);
     }
     assert(secondFailedFast, "overall: reservation is fast-fail, not blocked on the in-flight AI call");
@@ -91,7 +91,7 @@ async function main() {
     try { await reserveAuditSlot(user, "profile-c", "hash-c", ""); secondSucceeded = true; }
     catch { /* would mean the release didn't work */ }
     assert(secondSucceeded, "a new reservation succeeds right after the failed one was released — the customer isn't charged for a failed generation");
-    await precheckAuditLimit(user).then(() => fail++, () => pass++); // now blocked again by the second (still-open) reservation — sanity check
+    await precheckWeeklyLimit(user).then(() => fail++, () => pass++); // now blocked again by the second (still-open) reservation — sanity check
     console.log("  ✓ (sanity) the successful re-reservation itself now correctly blocks a third concurrent attempt");
   }
 
@@ -213,41 +213,41 @@ async function main() {
   // entirely in Postgres, with no AI call anywhere in this section.
   section("I. Admin-granted bonusAuditCredits: spent only after the weekly slot is used, refunded on failure");
   await resetAuditsForUser();
-  await db.update(profiles).set({ bonusAuditCredits: 0 }).where(eq(profiles.id, userId));
+  await db.update(profiles).set({ auditCredits: 0, auditCreditsUsed: 0 }).where(eq(profiles.id, userId));
   {
     // I1: with zero bonus credits, a second request within the week is still correctly blocked.
     const first = await reserveAuditSlot(user, "profile-i1", "hash-i1", "");
     let blockedWithoutCredit = false;
     try { await reserveAuditSlot(user, "profile-i1b", "hash-i1b", ""); }
-    catch (error) { blockedWithoutCredit = error instanceof AuditLimitError; }
-    assert(blockedWithoutCredit, "with 0 bonus credits, a second reservation this week is still rejected as AuditLimitError");
+    catch (error) { blockedWithoutCredit = error instanceof WeeklyLimitError; }
+    assert(blockedWithoutCredit, "with 0 bonus credits, a second reservation this week is still rejected as WeeklyLimitError");
     await completeReservation(first.auditId, first.leaseToken, { profileName: "I1", reportJson: "{}", score: 10, passCount: 1, weakCount: 0, failCount: 0, provider: "test" });
 
     // I2: grant 1 bonus credit — the next reservation (still within the same week) is now admitted,
     // spending the credit rather than the (already-used) weekly slot.
-    await db.update(profiles).set({ bonusAuditCredits: 1 }).where(eq(profiles.id, userId));
+    await db.update(profiles).set({ auditCredits: 1, auditCreditsUsed: 0 }).where(eq(profiles.id, userId));
     const second = await reserveAuditSlot(user, "profile-i2", "hash-i2", "");
-    const [afterSpend] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    const [afterSpend] = await db.select({ bonusAuditCredits: sql<number>`${profiles.auditCredits} - ${profiles.auditCreditsUsed}`.mapWith(Number) }).from(profiles).where(eq(profiles.id, userId));
     assert(afterSpend?.bonusAuditCredits === 0, `granting 1 bonus credit admits the next reservation and spends it (bonusAuditCredits now ${afterSpend?.bonusAuditCredits})`);
-    const [secondRow] = await db.select({ usedBonusCredit: profileAudits.usedBonusCredit }).from(profileAudits).where(eq(profileAudits.id, second.auditId));
+    const [secondRow] = await db.select({ usedBonusCredit: profileAudits.creditSpent }).from(profileAudits).where(eq(profileAudits.id, second.auditId));
     assert(secondRow?.usedBonusCredit === true, "the reservation row itself is marked usedBonusCredit=true");
 
     // I3: a third attempt is blocked again — the credit was a one-time grant, not unlimited.
     let blockedAfterSpend = false;
     try { await reserveAuditSlot(user, "profile-i3", "hash-i3", ""); }
-    catch (error) { blockedAfterSpend = error instanceof AuditLimitError; }
+    catch (error) { blockedAfterSpend = error instanceof WeeklyLimitError; }
     assert(blockedAfterSpend, "after the single bonus credit is spent, a further reservation is blocked again");
 
     // I4: the spent credit is refunded if that generation then fails — a failed AI call must never
     // permanently cost the account a credit any more than it costs them the weekly slot.
     await releaseReservation(second.auditId, second.leaseToken);
-    const [afterRefund] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    const [afterRefund] = await db.select({ bonusAuditCredits: sql<number>`${profiles.auditCredits} - ${profiles.auditCreditsUsed}`.mapWith(Number) }).from(profiles).where(eq(profiles.id, userId));
     assert(afterRefund?.bonusAuditCredits === 1, `a failed generation refunds the spent bonus credit (bonusAuditCredits now ${afterRefund?.bonusAuditCredits})`);
 
     // I5: releasing a reservation that did NOT use a bonus credit must never touch the balance.
     const third = await reserveAuditSlot(user, "profile-i5", "hash-i5", ""); // spends the refunded credit again (weekly slot still used from I1/I2)
     await completeReservation(third.auditId, third.leaseToken, { profileName: "I5", reportJson: "{}", score: 10, passCount: 1, weakCount: 0, failCount: 0, provider: "test" });
-    const [afterI5] = await db.select({ bonusAuditCredits: profiles.bonusAuditCredits }).from(profiles).where(eq(profiles.id, userId));
+    const [afterI5] = await db.select({ bonusAuditCredits: sql<number>`${profiles.auditCredits} - ${profiles.auditCreditsUsed}`.mapWith(Number) }).from(profiles).where(eq(profiles.id, userId));
     assert(afterI5?.bonusAuditCredits === 0, `a completed (non-released) bonus-credit reservation leaves the balance spent, not refunded (bonusAuditCredits now ${afterI5?.bonusAuditCredits})`);
   }
 

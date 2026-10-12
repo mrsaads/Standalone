@@ -103,15 +103,7 @@ export const auditReportSchema = z.object({
   methodology: z.string().min(20).max(1000),
 }).strict();
 
-type RawAuditReport = z.infer<typeof auditReportSchema>;
-
-// `locked` is never produced by the AI or stored in the database — it's stamped on by
-// lib/entitlements.ts's applyReportEntitlement() purely for the wire response, to mark a finding
-// whose note/evidence/action were withheld from a free-tier account. Declared here (rather than
-// left as an untyped excess property) so both that redaction function and every renderer that reads
-// `finding.locked` type-check normally.
-export type AuditReport = Omit<RawAuditReport, "findings"> & {
-  findings: (RawAuditReport["findings"][number] & { locked?: boolean })[];
+export type AuditReport = z.infer<typeof auditReportSchema> & {
   generatedAt?: string;
   provider?: string;
   source?: "ai" | "sample";

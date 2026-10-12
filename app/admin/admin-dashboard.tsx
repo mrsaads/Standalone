@@ -11,10 +11,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import type { AdminLeadRow, AdminManagementEnquiryRow } from "@/lib/admin-inbox-shared";
+import type { AnnouncementListRow } from "@/lib/announcement-shared";
+import { AdminInbox } from "./inbox-cards";
+import { AnnouncementComposer } from "./announcement-composer";
 
 type UserRow = {
   id: string; email: string; fullName: string; mobile: string; upworkLink: string; role: string;
-  plan: string; planUpdatedAt: string; createdAt: string; lastSeenAt: string; auditCount: number;
+  auditEntitlement: string; auditCredits: number; auditCreditsUsed: number; planUpdatedAt: string; createdAt: string; lastSeenAt: string; auditCount: number;
   emailVerified: boolean; lastSignInAt: string | null;
 };
 type AuditRow = { id: string; userEmail: string; profileName: string; score: number; passCount: number; weakCount: number; failCount: number; provider: string; billable: boolean; status: string; createdAt: string };
@@ -37,31 +41,27 @@ const paymentMethods = [
   { value: "other", label: "Other" },
 ];
 
-export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, audits }: { adminEmail: string; isSuperAdmin: boolean; users: UserRow[]; audits: AuditRow[] }) {
+export function AdminDashboard({
+  adminEmail,
+  users: initialUsers,
+  audits,
+  leads,
+  managementEnquiries,
+  announcements,
+}: {
+  adminEmail: string;
+  users: UserRow[];
+  audits: AuditRow[];
+  leads: AdminLeadRow[];
+  managementEnquiries: AdminManagementEnquiryRow[];
+  announcements: AnnouncementListRow[];
+}) {
   const params = useSearchParams();
   const driveParam = params.get("drive");
   const [drive, setDrive] = useState<DriveStatus | null>(null);
   const [loadingDrive, setLoadingDrive] = useState(true);
   const [retrying, setRetrying] = useState<string | null>(null);
   const [users, setUsers] = useState(initialUsers);
-  const [changingRole, setChangingRole] = useState<string | null>(null);
-
-  // Grant/revoke admin — only ever shown to the super-admin (see the isSuperAdmin prop); the server
-  // route re-checks that same condition itself and never trusts this client-side gate.
-  async function setRole(row: UserRow, role: "base" | "admin") {
-    setChangingRole(row.id);
-    try {
-      const response = await fetch(`/api/admin/users/${row.id}/role`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role }),
-      });
-      const result = await response.json() as { ok?: boolean; role?: string; error?: string };
-      if (!response.ok || !result.ok) throw new Error(result.error || "The role could not be changed.");
-      setUsers(rows => rows.map(u => u.id === row.id ? { ...u, role } : u));
-      toast.success(`${row.email} is now ${role === "admin" ? "an admin" : "a base user"}.`);
-    } catch (cause) { toast.error(cause instanceof Error ? cause.message : "The role could not be changed."); }
-    finally { setChangingRole(null); }
-  }
 
   // Optimization-request queue ("request optimization by a person") — the admin's worklist.
   const [optRequests, setOptRequests] = useState<OptimizationRequest[]>([]);
@@ -90,12 +90,12 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
   const [planUser, setPlanUser] = useState<UserRow | null>(null);
   const [planRecords, setPlanRecords] = useState<PaymentRecord[]>([]);
   const [loadingRecords, setLoadingRecords] = useState(false);
-  const [planForm, setPlanForm] = useState({ plan: "free", amount: "", currency: "PKR", method: "bank_transfer", reference: "", note: "" });
+  const [planForm, setPlanForm] = useState({ auditEntitlement: "free", auditCredits: "0", amount: "", currency: "PKR", method: "bank_transfer", reference: "", note: "" });
   const [savingPlan, setSavingPlan] = useState(false);
 
   function openPlanDialog(row: UserRow) {
     setPlanUser(row);
-    setPlanForm({ plan: row.plan, amount: "", currency: "PKR", method: "bank_transfer", reference: "", note: "" });
+    setPlanForm({ auditEntitlement: row.auditEntitlement, auditCredits: String(row.auditCredits ?? 0), amount: "", currency: "PKR", method: "bank_transfer", reference: "", note: "" });
     setLoadingRecords(true);
     fetch(`/api/admin/users/${row.id}/plan`, { cache: "no-store" })
       .then(r => r.json()).then((value: { records?: PaymentRecord[] }) => setPlanRecords(value.records || []))
@@ -109,12 +109,12 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
     try {
       const response = await fetch(`/api/admin/users/${planUser.id}/plan`, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: planForm.plan, amount: Number(planForm.amount) || 0, currency: planForm.currency, method: planForm.method, reference: planForm.reference, note: planForm.note }),
+        body: JSON.stringify({ auditEntitlement: planForm.auditEntitlement, auditCredits: Number(planForm.auditCredits) || 0, amount: Number(planForm.amount) || 0, currency: planForm.currency, method: planForm.method, reference: planForm.reference, note: planForm.note }),
       });
       const result = await response.json() as { ok?: boolean; error?: string };
       if (!response.ok || !result.ok) throw new Error(result.error || "The plan could not be saved.");
-      setUsers(rows => rows.map(u => u.id === planUser.id ? { ...u, plan: planForm.plan, planUpdatedAt: new Date().toISOString() } : u));
-      toast.success(`${planUser.email} is now on the ${planForm.plan} plan.`);
+      setUsers(rows => rows.map(u => u.id === planUser.id ? { ...u, auditEntitlement: planForm.auditEntitlement, auditCredits: Number(planForm.auditCredits) || 0, planUpdatedAt: new Date().toISOString() } : u));
+      toast.success(`${planUser.email}: audit entitlement set to ${planForm.auditEntitlement}, ${Number(planForm.auditCredits) || 0} credits.`);
       setPlanUser(null);
     } catch (cause) { toast.error(cause instanceof Error ? cause.message : "The plan could not be saved."); }
     finally { setSavingPlan(false); }
@@ -145,13 +145,13 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10">
+    <main className="mx-auto max-w-6xl px-6 py-10">
       <div className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Improvexus admin</h1>
           <p className="text-sm text-neutral-600">Signed in as {adminEmail} · unlimited audits</p>
         </div>
-        <a href="/audit" className="text-sm underline">Back to workspace</a>
+        <a href="/" className="text-sm underline">Back to workspace</a>
       </div>
 
       {driveParam && driveMessages[driveParam] && (
@@ -179,6 +179,26 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
         </CardContent>
       </Card>
 
+      {/* Managed-client administration lives on its own page: creating a client, granting and
+          revoking portal access, and writing and publishing weekly reports is a workflow, not a
+          widget, and it does not belong wedged between two tables. */}
+      <Card className="mb-8">
+        <CardHeader>
+          <CardTitle>Client portals</CardTitle>
+          <CardDescription>
+            Managed profile-management clients — onboard a client, grant or revoke portal access against a
+            verified account, add their Upwork profiles, and write and publish their weekly reports.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button asChild><a href="/admin/clients">Open client portal management</a></Button>
+        </CardContent>
+      </Card>
+
+      <AnnouncementComposer initial={announcements} />
+
+      <AdminInbox leads={leads} managementEnquiries={managementEnquiries} />
+
       <Card className="mb-8">
         <CardHeader>
           <CardTitle>Subscriptions &amp; payments</CardTitle>
@@ -199,8 +219,8 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
       <Card className="mb-8">
         <CardHeader><CardTitle>Users ({users.length})</CardTitle></CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Name</TableHead><TableHead>Mobile</TableHead><TableHead>Role</TableHead><TableHead>Plan</TableHead><TableHead>Verified</TableHead><TableHead>Last sign-in</TableHead><TableHead>Audits</TableHead><TableHead>Joined</TableHead><TableHead>Subscription</TableHead>{isSuperAdmin && <TableHead>Access</TableHead>}</TableRow></TableHeader>
+          <Table className="min-w-max">
+            <TableHeader><TableRow><TableHead>Email</TableHead><TableHead>Name</TableHead><TableHead>Mobile</TableHead><TableHead>Role</TableHead><TableHead>Plan</TableHead><TableHead>Verified</TableHead><TableHead>Last sign-in</TableHead><TableHead>Audits</TableHead><TableHead>Joined</TableHead><TableHead>Subscription</TableHead></TableRow></TableHeader>
             <TableBody>
               {users.map(u => (
                 <TableRow key={u.id}>
@@ -208,13 +228,12 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
                   <TableCell>{u.fullName || "—"}</TableCell>
                   <TableCell>{u.mobile || "—"}</TableCell>
                   <TableCell><Badge variant={u.role === "admin" ? "default" : "secondary"}>{u.role}</Badge></TableCell>
-                  <TableCell><Badge variant={u.plan === "subscriber" ? "default" : "secondary"}>{u.plan}</Badge></TableCell>
+                  <TableCell><Badge variant={u.auditEntitlement === "free" ? "secondary" : "default"}>{u.auditEntitlement}</Badge>{u.auditCredits > 0 && <span className="ix-muted-inline"> +{Math.max(0, u.auditCredits - u.auditCreditsUsed)} credits</span>}</TableCell>
                   <TableCell>{u.emailVerified ? <Badge variant="default">verified</Badge> : <Badge variant="secondary">unverified</Badge>}</TableCell>
                   <TableCell>{u.lastSignInAt ? new Date(u.lastSignInAt).toLocaleString() : "Never"}</TableCell>
                   <TableCell>{u.auditCount}</TableCell>
                   <TableCell>{new Date(u.createdAt).toLocaleDateString()}</TableCell>
                   <TableCell><Button size="sm" variant="outline" onClick={() => openPlanDialog(u)}>Manage plan</Button></TableCell>
-                  {isSuperAdmin && <TableCell>{u.email.toLowerCase() === adminEmail.toLowerCase() ? <Badge variant="secondary">Super admin</Badge> : <Button size="sm" variant="outline" disabled={changingRole === u.id} onClick={() => void setRole(u, u.role === "admin" ? "base" : "admin")}>{changingRole === u.id ? "Saving…" : u.role === "admin" ? "Revoke admin" : "Make admin"}</Button>}</TableCell>}
                 </TableRow>
               ))}
             </TableBody>
@@ -230,7 +249,7 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
         </CardHeader>
         <CardContent>
           {loadingOpt ? <p className="text-sm text-neutral-500">Loading…</p> : optRequests.length === 0 ? <p className="text-sm text-neutral-500">No requests yet.</p> : (
-            <Table>
+            <Table className="min-w-max">
               <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Profile link</TableHead><TableHead>Notes</TableHead><TableHead>Status</TableHead><TableHead>Requested</TableHead><TableHead>Action</TableHead></TableRow></TableHeader>
               <TableBody>
                 {optRequests.map(r => (
@@ -265,9 +284,9 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium">Plan</label>
-              <Select value={planForm.plan} onValueChange={v => setPlanForm(f => ({ ...f, plan: v }))}>
+              <Select value={planForm.auditEntitlement} onValueChange={v => setPlanForm(f => ({ ...f, auditEntitlement: v }))}>
                 <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="free">Free (preview only)</SelectItem><SelectItem value="subscriber">Subscriber (full access)</SelectItem></SelectContent>
+                <SelectContent><SelectItem value="free">Free (preview only)</SelectItem><SelectItem value="subscribed">Subscribed (full access)</SelectItem><SelectItem value="admin_granted">Granted by Improvexus (full access)</SelectItem></SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -303,7 +322,7 @@ export function AdminDashboard({ adminEmail, isSuperAdmin, users: initialUsers, 
       <Card>
         <CardHeader><CardTitle>Recent reports ({audits.length})</CardTitle></CardHeader>
         <CardContent>
-          <Table>
+          <Table className="min-w-max">
             <TableHeader><TableRow><TableHead>User</TableHead><TableHead>Profile</TableHead><TableHead>Score</TableHead><TableHead>Provider</TableHead><TableHead>Billable</TableHead><TableHead>Status</TableHead><TableHead>Generated</TableHead><TableHead>Retry filing / email</TableHead></TableRow></TableHeader>
             <TableBody>
               {audits.map(a => (
