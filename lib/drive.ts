@@ -10,7 +10,10 @@ import { encryptToken, decryptToken } from "@/lib/crypto";
 // ChatGPT. Customers never see or trigger Google auth; every audit is filed into the owner's
 // Drive automatically after generation. Scope is drive.file (minimum necessary): the app can only
 // see and manage files/folders it itself creates, never the rest of the owner's Drive.
-const SCOPES = ["https://www.googleapis.com/auth/drive.file"];
+// userinfo.email is only so the admin panel can say WHICH Google account is connected. Without it,
+// oauth2.userinfo.get() below is refused (401, insufficient scope) and the whole connection failed
+// right after Google's consent screen, before any token was saved. Both scopes are non-sensitive.
+const SCOPES = ["https://www.googleapis.com/auth/drive.file", "https://www.googleapis.com/auth/userinfo.email"];
 const ROOT_FOLDER_NAME = "Improvexus Audits";
 
 function oauthClient() {
@@ -42,6 +45,18 @@ async function activeConnection() {
 // Exchanges the OAuth callback code for tokens, creates (or reuses) the root "Improvexus Audits"
 // folder, and stores the encrypted refresh token as the single owner connection. Any previous
 // connection row is marked revoked rather than deleted, keeping a connection history.
+async function connectedAccountEmail(client: InstanceType<typeof google.auth.OAuth2>, drive: ReturnType<typeof google.drive>): Promise<{ email: string | null }> {
+  try {
+    const { data } = await google.oauth2({ auth: client, version: "v2" }).userinfo.get();
+    if (data.email) return { email: data.email };
+  } catch { /* fall through */ }
+  try {
+    const { data } = await drive.about.get({ fields: "user(emailAddress)" });
+    if (data.user?.emailAddress) return { email: data.user.emailAddress };
+  } catch { /* fall through */ }
+  return { email: null };
+}
+
 export async function completeConnection(code: string, connectedByEmail: string) {
   const client = oauthClient();
   const { tokens } = await client.getToken(code);
@@ -49,10 +64,11 @@ export async function completeConnection(code: string, connectedByEmail: string)
     throw new Error("Google did not return a refresh token. Remove Improvexus's access at myaccount.google.com/permissions and reconnect so Google issues a fresh one.");
   }
   client.setCredentials(tokens);
-  const oauth2 = google.oauth2({ auth: client, version: "v2" });
-  const { data: profile } = await oauth2.userinfo.get();
-
   const drive = google.drive({ version: "v3", auth: client });
+  // The connected account's email is a display label only: never let looking it up fail the
+  // connection itself. userinfo first (needs the userinfo.email scope above), then Drive's own
+  // "about" record, then "unknown".
+  const profile = await connectedAccountEmail(client, drive);
   const existing = await drive.files.list({
     q: `name='${ROOT_FOLDER_NAME}' and mimeType='application/vnd.google-apps.folder' and trashed=false`,
     fields: "files(id,name)",
