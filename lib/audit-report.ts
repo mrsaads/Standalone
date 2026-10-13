@@ -66,17 +66,53 @@ function validateFindingSet(findings: { id: CriterionId; section: typeof auditSe
   }
 }
 
+// The profile block is identity/display metadata (the PDF prints it as "Track Record: 98% Job
+// Success, 5 jobs"), not audit judgement. A model that writes "5 total jobs, 4 completed and 1 in
+// progress" for `jobs` used to fail the WHOLE audit on a 40-character limit — twice, after the
+// retry — throwing away a fully paid-for report over a label. So these fields are normalized
+// instead of rejected: whitespace collapsed, jobs/JSS reduced to the number the renderers expect
+// when one is present, anything still too long cut at a word boundary. The findings, summary and
+// every other judgement field stay strictly validated below.
+export const profileFieldLimits = { name: 120, title: 240, niche: 180, services: 500, buyer: 240, rate: 80, jss: 40, jobs: 40 } as const;
+
+export function fitText(value: string, max: number): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= max) return clean;
+  const cut = clean.slice(0, max - 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).replace(/[\s,;:.(-]+$/, "")}…`;
+}
+
+export function normalizeJobs(value: string): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (!clean || /^\d[\d,]*$/.test(clean)) return clean;
+  // "5 total jobs, 4 completed" / "Total jobs: 5" -> "5". The renderers append the word "jobs".
+  const number = clean.match(/\d[\d,]*/);
+  return number ? number[0] : fitText(clean, profileFieldLimits.jobs);
+}
+
+export function normalizeJss(value: string): string {
+  const clean = value.replace(/\s+/g, " ").trim();
+  if (clean.length <= 6) return clean;
+  // "98% Job Success Score (Top Rated)" -> "98%". The renderers append "Job Success".
+  const percent = clean.match(/\d{1,3}\s?%/);
+  return percent ? percent[0].replace(/\s/, "") : fitText(clean, profileFieldLimits.jss);
+}
+
+const fitted = (max: number, normalize?: (value: string) => string) =>
+  z.preprocess(value => (typeof value === "string" ? fitText(normalize ? normalize(value) : value, max) : value), z.string().max(max));
+
 export const auditReportSchema = z.object({
-  reportName: z.string().min(3).max(160),
+  reportName: fitted(160).pipe(z.string().min(3)),
   profile: z.object({
-    name: z.string().max(120),
-    title: z.string().max(240),
-    niche: z.string().max(180),
-    services: z.string().max(500),
-    buyer: z.string().max(240),
-    rate: z.string().max(80),
-    jss: z.string().max(40),
-    jobs: z.string().max(40),
+    name: fitted(profileFieldLimits.name),
+    title: fitted(profileFieldLimits.title),
+    niche: fitted(profileFieldLimits.niche),
+    services: fitted(profileFieldLimits.services),
+    buyer: fitted(profileFieldLimits.buyer),
+    rate: fitted(profileFieldLimits.rate),
+    jss: fitted(profileFieldLimits.jss, normalizeJss),
+    jobs: fitted(profileFieldLimits.jobs, normalizeJobs),
   }).strict(),
   executiveSummary: z.string().min(40).max(1800),
   biggestFlaw: z.string().min(10).max(500),
@@ -94,7 +130,7 @@ export const auditReportSchema = z.object({
   }).strict()).min(3).max(7),
   suggestedHeadline: z.string().min(5).max(240),
   suggestedOverview: z.string().min(40).max(2400),
-  keywordRecommendations: z.array(z.string().min(1).max(80)).max(20),
+  keywordRecommendations: z.array(fitted(80).pipe(z.string().min(1))).max(20),
   researchNotes: z.array(z.object({
     title: z.string().min(2).max(180),
     insight: z.string().min(10).max(700),
@@ -119,7 +155,14 @@ export const auditJsonSchema = {
       type: "object",
       additionalProperties: false,
       required: ["name", "title", "niche", "services", "buyer", "rate", "jss", "jobs"],
-      properties: Object.fromEntries(["name", "title", "niche", "services", "buyer", "rate", "jss", "jobs"].map(key => [key, { type: "string" }])),
+      // maxLength is stated here so the model sees the limits it is held to (the schema is sent
+      // to it as text). jss and jobs carry a description because the renderers append the words
+      // "Job Success" and "jobs" themselves.
+      properties: {
+        ...Object.fromEntries(Object.entries(profileFieldLimits).map(([key, max]) => [key, { type: "string", maxLength: max }])),
+        jss: { type: "string", maxLength: profileFieldLimits.jss, description: "Only the percentage, e.g. \"98%\". Empty string if not shown." },
+        jobs: { type: "string", maxLength: profileFieldLimits.jobs, description: "Only the total number of jobs, e.g. \"5\". Empty string if not shown." },
+      },
     },
     executiveSummary: { type: "string" },
     biggestFlaw: { type: "string" },

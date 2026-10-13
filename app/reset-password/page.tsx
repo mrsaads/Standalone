@@ -1,5 +1,5 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
 import { EmailQuotaNotice, useEmailQuota } from "@/app/auth/email-quota";
@@ -10,6 +10,13 @@ export default function ResetPasswordRequestPage() {
   const [error, setError] = useState("");
   const [sent, setSent] = useState(false);
   const quota = useEmailQuota();
+
+  // /auth/callback sends an expired, reused or wrong-browser reset link back here with ?error=,
+  // so the person sees why and can request a fresh link on the same screen.
+  useEffect(() => {
+    const message = new URLSearchParams(window.location.search).get("error");
+    if (message) setError(message.slice(0, 300));
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

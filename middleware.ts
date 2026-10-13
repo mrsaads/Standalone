@@ -61,6 +61,27 @@ export async function middleware(request: NextRequest) {
     return res;
   };
 
+  // Supabase sends an auth email link to the bare Site URL whenever the redirect URL we asked for
+  // is not on its allow list (Authentication -> URL Configuration -> Redirect URLs) — for example
+  // after the app moved to a new domain. The link then arrives at "/" carrying `?code=` (or
+  // `?token_hash=&type=`, or `?error_description=`) and the home page silently ignores it, which
+  // is exactly how a password-reset link "opens the website but not the reset page". Forward those
+  // stray parameters to the handlers that know what to do with them.
+  if (request.nextUrl.pathname === "/") {
+    const params = request.nextUrl.searchParams;
+    const target = params.has("code") || params.has("error_description") ? "/auth/callback"
+      : params.has("token_hash") && params.has("type") ? "/auth/confirm"
+      : null;
+    if (target) {
+      // Built from the public Host header, same as lib/http.ts requestOrigin(): behind Render's
+      // proxy the URL the Node process sees is not the address the browser used.
+      const host = request.headers.get("host");
+      const proto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() || "https";
+      const base = process.env.APP_ORIGIN?.replace(/\/$/, "") || (host ? `${proto}://${host}` : request.nextUrl.origin);
+      return withBrowserId(NextResponse.redirect(`${base}${target}?${params.toString()}`));
+    }
+  }
+
   let response = NextResponse.next({ request });
 
   const url = process.env.SUPABASE_URL;
