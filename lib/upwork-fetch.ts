@@ -87,18 +87,23 @@ async function readCapped(response: Response, capBytes: number): Promise<string 
 // Fetches a validated Upwork profile URL with the constraints an untrusted-target fetch needs:
 // bounded timeout, bounded response size, redirects followed manually (not via `redirect: "follow"`)
 // so a redirect can never carry the request off upwork.com — the SSRF shape that a naive follow-any
-// redirect would otherwise allow. Never throws; returns a ProfileFetchOutcome so callers can tell a
-// genuinely failed/blocked/timed-out fetch apart from a real, readable profile page.
-export async function fetchUpworkProfile(rawUrl: string): Promise<ProfileFetchOutcome> {
+// redirect would otherwise allow. Never throws. Returns the raw HTML so callers that need the page's
+// meta tags (the public profile score reads og:description and the rate from them) can have it;
+// fetchUpworkProfile below turns it into plain text for the audit flow.
+export type PageFetchResult =
+  | { ok: true; html: string }
+  | { ok: false; outcome: "blocked" | "unavailable" | "timeout" | "parse_failed" | "invalid"; message: string };
+
+export async function fetchUpworkPage(rawUrl: string): Promise<PageFetchResult> {
   if (!rawUrl.trim() || !referenceValid(rawUrl)) {
-    return { outcome: "invalid", message: "Use a valid HTTPS Upwork freelancer profile link." };
+    return { ok: false, outcome: "invalid", message: "Use a valid HTTPS Upwork freelancer profile link." };
   }
 
   let current = rawUrl;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     let host: string;
-    try { host = new URL(current).hostname; } catch { return { outcome: "invalid", message: "Use a valid HTTPS Upwork freelancer profile link." }; }
-    if (!isUpworkHost(host)) return { outcome: "blocked", message: "This link redirected away from upwork.com, so it was not followed." };
+    try { host = new URL(current).hostname; } catch { return { ok: false, outcome: "invalid", message: "Use a valid HTTPS Upwork freelancer profile link." }; }
+    if (!isUpworkHost(host)) return { ok: false, outcome: "blocked", message: "This link redirected away from upwork.com, so it was not followed." };
 
     let response: Response;
     try {
@@ -110,41 +115,159 @@ export async function fetchUpworkProfile(rawUrl: string): Promise<ProfileFetchOu
     } catch (error) {
       const isTimeout = error instanceof Error && error.name === "TimeoutError";
       return isTimeout
-        ? { outcome: "timeout", message: "Upwork did not respond in time. Paste the profile text or upload a document instead." }
-        : { outcome: "unavailable", message: "Upwork could not be reached automatically. Paste the profile text or upload a document instead." };
+        ? { ok: false, outcome: "timeout", message: "Upwork did not respond in time. Paste the profile text or upload a document instead." }
+        : { ok: false, outcome: "unavailable", message: "Upwork could not be reached automatically. Paste the profile text or upload a document instead." };
     }
 
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
-      if (!location) return { outcome: "unavailable", message: "Upwork did not allow automatic access to this profile. Paste the profile text or upload a document instead." };
+      if (!location) return { ok: false, outcome: "unavailable", message: "Upwork did not allow automatic access to this profile. Paste the profile text or upload a document instead." };
       try { current = new URL(location, current).toString(); }
-      catch { return { outcome: "unavailable", message: "Upwork did not allow automatic access to this profile. Paste the profile text or upload a document instead." }; }
+      catch { return { ok: false, outcome: "unavailable", message: "Upwork did not allow automatic access to this profile. Paste the profile text or upload a document instead." }; }
       continue;
     }
     if (response.status === 401 || response.status === 403 || response.status === 429) {
-      return { outcome: "blocked", message: "Upwork blocked automatic access to this profile. Paste the profile text or upload a document instead." };
+      return { ok: false, outcome: "blocked", message: "Upwork blocked automatic access to this profile. Paste the profile text or upload a document instead." };
     }
     if (!response.ok) {
-      return { outcome: "unavailable", message: `Upwork returned an error (status ${response.status}). Paste the profile text or upload a document instead.` };
+      return { ok: false, outcome: "unavailable", message: `Upwork returned an error (status ${response.status}). Paste the profile text or upload a document instead.` };
     }
 
     const type = response.headers.get("content-type") ?? "";
-    if (!type.includes("text/html")) return { outcome: "parse_failed", message: "The profile link did not return readable profile information." };
+    if (!type.includes("text/html")) return { ok: false, outcome: "parse_failed", message: "The profile link did not return readable profile information." };
 
     const html = await readCapped(response, MAX_RESPONSE_BYTES);
-    if (html === null) return { outcome: "parse_failed", message: "The profile page was too large to read automatically. Paste the profile text or upload a document instead." };
-
-    const text = decodeHtml(html).slice(0, MAX_TEXT_CHARS);
-    if (BLOCKED_PATTERNS.some(pattern => pattern.test(text))) {
-      return { outcome: "blocked", message: "Upwork showed a sign-in or verification page instead of the profile. Paste the profile text or upload a document instead." };
-    }
-    if (text.length < 200) {
-      return { outcome: "unavailable", message: "Upwork returned a page with no readable profile content. Paste the profile text or upload a document instead." };
-    }
-    if (text.length < 500 || !PROFILE_SIGNAL.test(text)) {
-      return { outcome: "partial", text, message: "Only part of this profile could be read automatically. Check every field below, and paste the full profile text if anything is missing." };
-    }
-    return { outcome: "success", text };
+    if (html === null) return { ok: false, outcome: "parse_failed", message: "The profile page was too large to read automatically. Paste the profile text or upload a document instead." };
+    return { ok: true, html };
   }
-  return { outcome: "unavailable", message: "This profile link redirected too many times. Paste the profile text or upload a document instead." };
+  return { ok: false, outcome: "unavailable", message: "This profile link redirected too many times. Paste the profile text or upload a document instead." };
+}
+
+// The audit flow's view of the same fetch: plain text, classified as a real profile, a partial
+// read, or a login/challenge page. Behaviour is unchanged from before fetchUpworkPage was split out.
+export async function fetchUpworkProfile(rawUrl: string): Promise<ProfileFetchOutcome> {
+  const page = await fetchUpworkPage(rawUrl);
+  if (!page.ok) return { outcome: page.outcome, message: page.message };
+  const text = decodeHtml(page.html).slice(0, MAX_TEXT_CHARS);
+  if (isBlockedText(text)) {
+    return { outcome: "blocked", message: "Upwork showed a sign-in or verification page instead of the profile. Paste the profile text or upload a document instead." };
+  }
+  if (text.length < 200) {
+    return { outcome: "unavailable", message: "Upwork returned a page with no readable profile content. Paste the profile text or upload a document instead." };
+  }
+  if (text.length < 500 || !PROFILE_SIGNAL.test(text)) {
+    return { outcome: "partial", text, message: "Only part of this profile could be read automatically. Check every field below, and paste the full profile text if anything is missing." };
+  }
+  return { outcome: "success", text };
+}
+
+export function isBlockedText(text: string): boolean {
+  return BLOCKED_PATTERNS.some(pattern => pattern.test(text));
+}
+
+// ---- Public header snapshot ------------------------------------------------------------------
+// What Upwork shows a signed-out visitor (and therefore our server): name, title, location, Job
+// Success, badge, rating, total jobs, total hours, a consultation offer and the hourly rate in the
+// page's product meta tags. The overview, skills, portfolio and employment history are NOT in the
+// signed-out page (checked against real profiles on 2026-10-14), which is why the public score asks
+// for the overview to be pasted. Every field is optional: a missing one is reported as missing,
+// never guessed.
+export type PublicProfileSnapshot = {
+  name: string | null;
+  title: string | null;
+  location: string | null;
+  jss: number | null;            // 0-100
+  badge: "Top Rated Plus" | "Top Rated" | "Rising Talent" | "Expert-Vetted" | null;
+  rating: number | null;         // 0-5
+  reviews: number | null;
+  totalJobs: number | null;
+  totalHours: number | null;
+  hourlyRate: number | null;     // USD
+  consultation: { price: number; minutes: number } | null;
+};
+
+function metaContent(html: string, key: string): string | null {
+  // <meta property="og:title" content="..."> in either attribute order, name= or property=, and
+  // either quote style (a double-quoted value may contain an apostrophe: "Ali's profile").
+  const k = key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const value = `(?:"([^"]*)"|'([^']*)')`;
+  const patterns = [
+    new RegExp(`<meta[^>]+(?:property|name)=["']${k}["'][^>]*content=${value}`, "i"),
+    new RegExp(`<meta[^>]+content=${value}[^>]*(?:property|name)=["']${k}["']`, "i"),
+  ];
+  for (const pattern of patterns) {
+    const m = pattern.exec(html);
+    if (m) return decodeHtml(m[1] ?? m[2] ?? "");
+  }
+  return null;
+}
+
+function parseCount(raw: string): number | null {
+  const m = /^([\d,]+(?:\.\d+)?)\s*([kKmM])?$/.exec(raw.trim());
+  if (!m) return null;
+  const base = Number(m[1].replace(/,/g, ""));
+  if (!Number.isFinite(base)) return null;
+  const mult = m[2] ? (m[2].toLowerCase() === "k" ? 1_000 : 1_000_000) : 1;
+  return Math.round(base * mult);
+}
+
+export function parsePublicProfile(html: string): PublicProfileSnapshot {
+  const text = decodeHtml(html);
+  const pageTitle = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1];
+  const titleParts = pageTitle ? decodeHtml(pageTitle).split(" - ") : [];
+
+  const name = metaContent(html, "og:title") || (titleParts.length >= 2 ? titleParts[0] : null);
+  const title = metaContent(html, "og:description") || (titleParts.length >= 3 ? titleParts.slice(1, -1).join(" - ") : null);
+  const fromLine = titleParts.at(-1)?.match(/Upwork Freelancer from (.+)$/i)?.[1] ?? null;
+
+  const jss = /(\d{1,3})\s*%\s*Job Success/i.exec(text);
+  const badge = /Top Rated Plus/i.test(text) ? "Top Rated Plus"
+    : /Expert[- ]Vetted/i.test(text) ? "Expert-Vetted"
+    : /\bTop Rated\b/i.test(text) ? "Top Rated"
+    : /Rising Talent/i.test(text) ? "Rising Talent" : null;
+  const jobs = /([\d,.]+\s*[kKmM]?)\s*Total jobs/i.exec(text);
+  const hours = /([\d,.]+\s*[kKmM]?)\s*Total hours/i.exec(text);
+  const rating = /\b([1-5](?:\.\d)?)\s*\((\d{1,5})\)/.exec(text);
+  const rateText = /\$\s*([\d,]+(?:\.\d{1,2})?)\s*\/\s*hr\b/i.exec(text);
+  const rateMeta = metaContent(html, "product:price:amount");
+  const consult = /\$\s*([\d,]+(?:\.\d{1,2})?)\s*per\s*(\d{1,3})\s*min/i.exec(text);
+
+  const num = (v: string | null | undefined) => {
+    if (!v) return null;
+    const n = Number(v.replace(/,/g, ""));
+    return Number.isFinite(n) ? n : null;
+  };
+  const jssValue = jss ? Number(jss[1]) : null;
+  const ratingValue = rating ? Number(rating[1]) : null;
+
+  return {
+    name: name?.trim() || null,
+    title: title?.trim() || null,
+    location: fromLine?.trim() || null,
+    jss: jssValue !== null && jssValue <= 100 ? jssValue : null,
+    badge,
+    rating: ratingValue !== null && ratingValue <= 5 ? ratingValue : null,
+    reviews: rating ? Number(rating[2]) : null,
+    totalJobs: jobs ? parseCount(jobs[1]) : null,
+    totalHours: hours ? parseCount(hours[1]) : null,
+    hourlyRate: num(rateText?.[1]) ?? num(rateMeta),
+    consultation: consult ? { price: Number(consult[1].replace(/,/g, "")), minutes: Number(consult[2]) } : null,
+  };
+}
+
+export type PublicSnapshotResult =
+  | { ok: true; snapshot: PublicProfileSnapshot }
+  | { ok: false; outcome: PageFetchResult extends infer R ? R extends { ok: false; outcome: infer O } ? O : never : never; message: string };
+
+export async function fetchPublicProfileSnapshot(rawUrl: string): Promise<PublicSnapshotResult> {
+  const page = await fetchUpworkPage(rawUrl);
+  if (!page.ok) return { ok: false, outcome: page.outcome, message: page.message };
+  if (isBlockedText(decodeHtml(page.html).slice(0, MAX_TEXT_CHARS))) {
+    return { ok: false, outcome: "blocked", message: "Upwork showed a sign-in or verification page instead of the profile." };
+  }
+  const snapshot = parsePublicProfile(page.html);
+  if (!snapshot.title && snapshot.jss === null && snapshot.totalJobs === null) {
+    return { ok: false, outcome: "parse_failed", message: "The profile page did not contain readable profile details." };
+  }
+  return { ok: true, snapshot };
 }

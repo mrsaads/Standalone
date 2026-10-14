@@ -26,7 +26,7 @@ const ZONE_TO_ISO: Record<string, string> = {
   "Africa/Accra": "GH", "Africa/Johannesburg": "ZA", "Pacific/Auckland": "NZ", "America/Toronto": "CA", "America/Vancouver": "CA",
   "America/Edmonton": "CA", "America/Winnipeg": "CA",
 };
-function guessCountry(): string {
+export function guessCountry(): string {
   try {
     const zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     if (ZONE_TO_ISO[zone]) return ZONE_TO_ISO[zone];
@@ -41,7 +41,7 @@ function guessCountry(): string {
 // The full list is ~200 rows and the form has two pickers. Rendering it on the server would put
 // 400 identical <option> lines into the HTML of every public page; it is filled in after mount
 // instead, with the common countries (and whatever is already selected) present from the start.
-function CountrySelect({ id, value, onChange, disabled, invalid, label, full }: { id: string; value: string; onChange: (iso: string) => void; disabled?: boolean; invalid?: boolean; label: string; full: boolean }) {
+export function CountrySelect({ id, value, onChange, disabled, invalid, label, full }: { id: string; value: string; onChange: (iso: string) => void; disabled?: boolean; invalid?: boolean; label: string; full: boolean }) {
   const priority = useMemo(() => PRIORITY_DIAL_ISOS.map(iso => dialCountry(iso)!).filter(Boolean), []);
   const selected = dialCountry(value);
   const selectedMissing = !full && selected && !PRIORITY_DIAL_ISOS.includes(selected.iso as (typeof PRIORITY_DIAL_ISOS)[number]);

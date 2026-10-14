@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
 import { useLockCountdown } from "@/app/auth/email-quota";
+import { safeNextPath } from "@/lib/http";
 
 function LoginInner() {
   const params = useSearchParams();
@@ -40,7 +41,9 @@ function LoginInner() {
       // navigation has been observed to silently no-op right after an auth cookie changes out from
       // under it (the push resolves, the cookie is set, but the route never re-renders) — a full
       // navigation always picks up the fresh session server-side.
-      window.location.href = "/";
+      // ?next= (only ever a path on this site) sends someone who came from a specific page, such as
+      // the free profile score's "full audit" button, back to where they were heading.
+      window.location.href = safeNextPath(params.get("next"));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Sign in failed.");
     } finally {
@@ -103,7 +106,7 @@ function LoginInner() {
           it is actually needed — on the "check your email" screen right after signing up (see
           app/signup/page.tsx) and at /verify. */}
       <p className="ix-auth__links">
-        <span>Need an account? <Link href="/signup">Create one</Link></span>
+        <span>Need an account? <Link href={params.get("next") ? `/signup?next=${encodeURIComponent(safeNextPath(params.get("next")))}` : "/signup"}>Create one</Link></span>
         <span>Forgot your password? <Link href="/reset-password">Reset it</Link></span>
       </p>
     </AuthShell>

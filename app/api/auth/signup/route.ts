@@ -2,7 +2,7 @@ import { z } from "zod";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getDb } from "@/db";
 import { profiles } from "@/db/schema";
-import { isTrustedOrigin, resolveAppOrigin } from "@/lib/http";
+import { isTrustedOrigin, resolveAppOrigin, safeNextPath } from "@/lib/http";
 import { authJson, guardAuthEmail } from "@/lib/security/auth-guard";
 import { refund } from "@/lib/security/email-throttle";
 
@@ -16,6 +16,9 @@ const signupSchema = z.object({
     .regex(/[0-9]/, "Your password needs at least one number."),
   // Honeypot: a field real visitors never see or fill. Bots that auto-fill every input do.
   website: z.string().max(300).optional().default(""),
+  // Where to land after the verification link is clicked (e.g. /audits when the person came from
+  // the free profile score's "full audit" button). Only ever a path on this site: safeNextPath.
+  next: z.string().max(200).optional().default(""),
 });
 
 const json = authJson;
@@ -33,7 +36,7 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return json({ error: "The signup request could not be read." }, 400); }
   const parsed = signupSchema.safeParse(body);
   if (!parsed.success) return json({ error: parsed.error.issues[0]?.message || "Check your signup details." }, 400);
-  const { fullName, mobile, upworkLink, email, password, website } = parsed.data;
+  const { fullName, mobile, upworkLink, email, password, website, next } = parsed.data;
 
   // Honeypot tripped: answer exactly like a real signup so the bot learns nothing, send nothing.
   if (website) return json({ needsVerification: true });
@@ -50,7 +53,7 @@ export async function POST(request: Request) {
     password,
     options: {
       data: { full_name: fullName },
-      emailRedirectTo: `${origin}/auth/callback?next=/`,
+      emailRedirectTo: `${origin}/auth/callback?next=${encodeURIComponent(safeNextPath(next))}`,
     },
   });
   if (error) {

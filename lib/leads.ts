@@ -17,6 +17,9 @@ export const LEAD_SOURCES = [
   "landing_service",
   "landing_location",
   "client_portal_access_request",
+  // The free profile score (app/api/profile-score). Saved by that route directly, never through
+  // /api/leads, so the enquiry form cannot be submitted with this source.
+  "profile_score",
 ] as const;
 
 export const GOALS_MIN = 20;
@@ -73,7 +76,7 @@ const shape = z.object({
   whatsappNumber: z.string().max(40),
   profileLink: z.string().max(500),
   goals: z.string().max(GOALS_MAX + 200),
-  source: z.enum(LEAD_SOURCES),
+  source: z.enum(LEAD_SOURCES).refine(source => source !== "profile_score"),
   // Which page the form was on (a path on this site), so an admin can see what the person was
   // reading. Optional and never trusted for anything but display.
   sourcePage: z.string().max(200).optional().default(""),

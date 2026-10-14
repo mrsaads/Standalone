@@ -1,8 +1,21 @@
 "use client";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { AuthShell, AuthField } from "@/app/auth/auth-shell";
 import { EmailQuotaNotice, useEmailQuota, type Quota } from "@/app/auth/email-quota";
+import { safeNextPath } from "@/lib/http";
+import { DESTINATION_PATH, isDestination } from "@/lib/destination-shared";
+
+// Where this signup should end up once the email is verified: an explicit ?next= path, or the
+// older ?destination=audit|client_portal links the landing page uses. Read after mount (not with
+// useSearchParams) so this page still prerenders without a Suspense boundary.
+function landingPathFromUrl(): string {
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("next");
+  if (next) return safeNextPath(next);
+  const destination = params.get("destination");
+  return isDestination(destination) ? DESTINATION_PATH[destination] : "/";
+}
 
 export default function SignupPage() {
   const [fullName, setFullName] = useState("");
@@ -15,6 +28,9 @@ export default function SignupPage() {
   const [done, setDone] = useState(false);
   const [website, setWebsite] = useState(""); // honeypot — real people never see or fill it
   const quota = useEmailQuota();
+  const [nextPath, setNextPath] = useState("/");
+  useEffect(() => { setNextPath(landingPathFromUrl()); }, []);
+  const loginHref = nextPath === "/" ? "/login" : `/login?next=${encodeURIComponent(nextPath)}`;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -29,7 +45,7 @@ export default function SignupPage() {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fullName, mobile, upworkLink, email, password, website }),
+        body: JSON.stringify({ fullName, mobile, upworkLink, email, password, website, next: nextPath }),
       });
       const result = await response.json() as { error?: string; code?: string; needsVerification?: boolean; quota?: Quota | null; retryAfterSeconds?: number };
       quota.fromResponse(result);
@@ -65,7 +81,7 @@ export default function SignupPage() {
             somebody genuinely has a missing verification email and nothing else to do about it. */}
         <p className="ix-auth__links">
           <span>Didn&apos;t get it? <Link href="/verify">Resend the verification email</Link></span>
-          <span><Link href="/login">Back to sign in</Link></span>
+          <span><Link href={loginHref}>Back to sign in</Link></span>
         </p>
       </AuthShell>
     );
@@ -74,7 +90,7 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Create your Improvexus account"
-      subtitle={<>Already have an account? <Link href="/login">Sign in</Link>.</>}
+      subtitle={<>Already have an account? <Link href={loginHref}>Sign in</Link>.</>}
     >
       <form className="ix-auth__form" onSubmit={submit} noValidate>
         <div className="ix-auth__fields">

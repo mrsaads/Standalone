@@ -36,7 +36,8 @@ export function LandingPage() {
           <h1>An Upwork bidding agency that helps you win better work.</h1>
           <p>We give freelancers and agencies a dedicated Upwork bidder, tidy up the profile, help with proposals and look after the account week to week, so you always know what the plan is.</p>
           <div className="ix-l-hero-ctas">
-            <Link href="/signup?destination=audit" className="ix-l-btn-solid">Audit my profile <ArrowRight size={15} style={{ display: "inline", marginLeft: 4, verticalAlign: -2 }} /></Link>
+            <Link href="/profile-score" className="ix-l-btn-solid">Get my free profile score <ArrowRight size={15} style={{ display: "inline", marginLeft: 4, verticalAlign: -2 }} /></Link>
+            <Link href="/signup?destination=audit" className="ix-l-btn-ghost" style={{ border: "1px solid var(--ix-l-border)" }}>Audit my profile</Link>
             <a href="#work-with-us" className="ix-l-btn-ghost" style={{ border: "1px solid var(--ix-l-border)" }}>Explore profile management</a>
           </div>
         </div>

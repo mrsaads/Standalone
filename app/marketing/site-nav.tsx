@@ -9,6 +9,7 @@ const NAV_LINKS = [
   { href: "/services", label: "Services" },
   { href: "/upwork-bidding-agency", label: "Where we work" },
   { href: "/#how-it-works", label: "How it works" },
+  { href: "/profile-score", label: "Free Profile Score" },
   { href: "/signup?destination=audit", label: "Profile Audit" },
   { href: "/signup?destination=client_portal", label: "Client Portal" },
 ];

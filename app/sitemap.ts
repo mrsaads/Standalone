@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date(`${CONTENT_UPDATED}T00:00:00Z`);
   const entries: MetadataRoute.Sitemap = [
     { url: absoluteUrl("/"), lastModified: now, changeFrequency: "weekly", priority: 1 },
+    { url: absoluteUrl("/profile-score"), lastModified: now, changeFrequency: "monthly", priority: 0.9 },
     { url: absoluteUrl("/services"), lastModified: now, changeFrequency: "monthly", priority: 0.8 },
     ...SERVICES.map(service => ({ url: absoluteUrl(`/services/${service.slug}`), lastModified: now, changeFrequency: "monthly" as const, priority: 0.8 })),
     { url: absoluteUrl(LOCATIONS_BASE), lastModified: now, changeFrequency: "monthly", priority: 0.9 },

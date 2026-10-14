@@ -39,6 +39,7 @@ export const LEAD_SOURCE_LABEL: Record<string, string> = {
   landing_service: "Service page",
   landing_location: "Location page",
   client_portal_access_request: "Portal access request",
+  profile_score: "Free profile score",
 };
 
 export const LEAD_STATUSES = ["new", "reviewed", "actioned"] as const;

@@ -90,6 +90,7 @@ const pageFiles = [
   "app/landing-page.tsx", "app/marketing/lead-form.tsx", "app/marketing/location-parts.tsx", "app/marketing/site-footer.tsx", "app/marketing/site-nav.tsx",
   "app/services/page.tsx", "app/services/[slug]/page.tsx", "app/upwork-bidding-agency/page.tsx", "app/upwork-bidding-agency/[country]/page.tsx",
   "app/upwork-bidding-agency/[country]/[city]/page.tsx", "app/opengraph-image.tsx", "lib/marketing/site.ts",
+  "app/profile-score/page.tsx", "app/profile-score/score-form.tsx", "lib/profile-score.ts",
 ];
 const marked: string[] = [];
 for (const file of pageFiles) {
