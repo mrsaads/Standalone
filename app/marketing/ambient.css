@@ -1,0 +1,164 @@
+/* Light and motion for the public site (everything inside .ix-landing).
+   - Corner glows: three blurred colour fields that drift slowly behind the page.
+   - Pointer spotlight: a faint light that follows the mouse (position fed by ambient-light.tsx).
+   - Card light: a coloured edge and inner glow at the pointer on whatever card is hovered.
+   - Buttons: a light sweep, a lift, a soft glow, and a gentle pulse on the main call to action.
+   - Nav and icons: macOS dock style, the hovered item grows and its neighbours grow a little.
+   Hover effects only apply on devices that can hover. "Reduce motion" turns all movement off.
+   Nothing here flashes: the pulse is a slow glow, well under the 3 flashes per second limit. */
+
+.ix-landing {
+  --ix-glow-a: 45, 212, 191;   /* teal */
+  --ix-glow-b: 139, 92, 246;   /* violet */
+  --ix-glow-c: 56, 189, 248;   /* sky */
+  --ix-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ix-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* ---------- Corner glows and spotlight ---------- */
+.ix-ambient { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.ix-ambient i { position: absolute; border-radius: 50%; filter: blur(70px); will-change: transform; }
+.ix-ambient-tl { width: 48vmax; height: 48vmax; top: -22vmax; left: -18vmax; opacity: 0.75;
+  background: radial-gradient(circle, rgba(var(--ix-glow-a), 0.5), transparent 66%); animation: ix-drift-a 24s ease-in-out infinite alternate; }
+.ix-ambient-tr { width: 36vmax; height: 36vmax; top: -20vmax; right: -16vmax; opacity: 0.55;
+  background: radial-gradient(circle, rgba(var(--ix-glow-c), 0.36), transparent 66%); animation: ix-drift-c 30s ease-in-out infinite alternate; }
+.ix-ambient-br { width: 52vmax; height: 52vmax; bottom: -26vmax; right: -20vmax; opacity: 0.7;
+  background: radial-gradient(circle, rgba(var(--ix-glow-b), 0.5), transparent 66%); animation: ix-drift-b 28s ease-in-out infinite alternate; }
+.ix-ambient-spot { width: 560px; height: 560px; left: var(--ix-mx, 50vw); top: var(--ix-my, -400px); transform: translate(-50%, -50%);
+  filter: none !important; opacity: calc(var(--ix-spot, 0) * 1); transition: opacity 0.4s ease;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.055), rgba(var(--ix-glow-a), 0.04) 35%, transparent 62%); }
+
+@keyframes ix-drift-a { to { transform: translate(8vmax, 6vmax) scale(1.12); } }
+@keyframes ix-drift-b { to { transform: translate(-9vmax, -5vmax) scale(1.08); } }
+@keyframes ix-drift-c { to { transform: translate(-6vmax, 8vmax) scale(0.92); } }
+
+/* Content stays above the light. */
+.ix-landing > main, .ix-landing > footer, .ix-landing .ix-l-footer { position: relative; z-index: 1; }
+
+/* ---------- Headings: a soft metallic sheen ---------- */
+.ix-landing .ix-l-hero h1, .ix-landing .ix-m-hero h1 {
+  background: linear-gradient(180deg, #ffffff 30%, #b8c4cf 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+
+/* ---------- Eyebrow tags: a small breathing light ---------- */
+.ix-landing .ix-l-eyebrow { position: relative; background: rgba(255, 255, 255, 0.025); }
+.ix-landing .ix-l-eyebrow::before {
+  content: ""; width: 6px; height: 6px; border-radius: 50%; background: rgb(var(--ix-glow-a));
+  box-shadow: 0 0 10px rgba(var(--ix-glow-a), 0.9); animation: ix-breathe 2.6s ease-in-out infinite;
+}
+@keyframes ix-breathe { 0%, 100% { opacity: 0.45; transform: scale(0.85); } 50% { opacity: 1; transform: scale(1.15); } }
+
+/* ---------- Cards: edge light and inner glow at the pointer ---------- */
+.ix-landing :is(.ix-l-card, .ix-l-step, .ix-l-workspace-card, .ix-l-enquiry-form, .ix-ps-result, .ix-ps-aside, .ix-m-glow) {
+  position: relative; isolation: isolate;
+  transition: transform 0.45s var(--ix-ease), border-color 0.3s ease, box-shadow 0.45s var(--ix-ease), background-color 0.3s ease;
+}
+.ix-landing :is(.ix-l-card, .ix-l-step, .ix-l-workspace-card, .ix-l-enquiry-form, .ix-ps-result, .ix-ps-aside, .ix-m-glow)::before {
+  content: ""; position: absolute; inset: -1px; border-radius: inherit; padding: 1px; pointer-events: none; z-index: -1;
+  background: radial-gradient(280px circle at var(--cx, 50%) var(--cy, 0%), rgba(var(--ix-glow-a), 0.75), rgba(var(--ix-glow-b), 0.45) 45%, transparent 72%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0); -webkit-mask-composite: xor; mask-composite: exclude;
+  opacity: 0; transition: opacity 0.35s ease;
+}
+.ix-landing :is(.ix-l-card, .ix-l-step, .ix-l-workspace-card, .ix-l-enquiry-form, .ix-ps-result, .ix-ps-aside, .ix-m-glow)::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: -1;
+  background: radial-gradient(440px circle at var(--cx, 50%) var(--cy, 0%), rgba(255, 255, 255, 0.06), rgba(var(--ix-glow-a), 0.035) 40%, transparent 70%);
+  opacity: 0; transition: opacity 0.35s ease;
+}
+.ix-landing [data-lit]::before, .ix-landing [data-lit]::after { opacity: 1; }
+
+@media (hover: hover) {
+  /* Cards you click lift toward you. Forms and results don't move: nobody wants a moving box
+     while they type or read. */
+  .ix-landing :is(.ix-l-card, .ix-l-step, .ix-l-workspace-card):hover {
+    transform: translateY(-4px);
+    border-color: rgba(var(--ix-glow-a), 0.35);
+    box-shadow: 0 22px 50px -24px rgba(var(--ix-glow-a), 0.45), 0 10px 30px -18px rgba(var(--ix-glow-b), 0.5);
+  }
+}
+
+/* ---------- Icons: dock-style pop with a coloured glow ---------- */
+.ix-landing :is(.ix-l-icon, .ix-ps-cta-icon, .ix-l-mark) { transition: transform 0.5s var(--ix-spring), box-shadow 0.4s ease, border-color 0.3s ease, background 0.3s ease; }
+@media (hover: hover) {
+  .ix-landing :is(.ix-l-card, .ix-l-step, .ix-l-workspace-card, .ix-ps-cta):hover :is(.ix-l-icon, .ix-ps-cta-icon) {
+    transform: translateY(-3px) scale(1.18) rotate(-6deg);
+    border-color: rgba(var(--ix-glow-a), 0.6);
+    background: linear-gradient(150deg, rgba(var(--ix-glow-a), 0.22), rgba(var(--ix-glow-b), 0.18));
+    box-shadow: 0 0 0 1px rgba(var(--ix-glow-a), 0.25), 0 10px 26px -6px rgba(var(--ix-glow-a), 0.6);
+  }
+  .ix-landing .ix-l-brand:hover .ix-l-mark { transform: scale(1.12) rotate(-8deg); box-shadow: 0 0 22px rgba(var(--ix-glow-a), 0.55); border-color: rgba(var(--ix-glow-a), 0.6); }
+}
+
+/* ---------- Nav: macOS dock magnification ---------- */
+.ix-landing .ix-l-nav-links { gap: 6px; }
+.ix-landing .ix-l-nav-links a {
+  display: inline-block; padding: 7px 12px; border-radius: 999px; transform-origin: center bottom;
+  transition: transform 0.35s var(--ix-spring), color 0.2s ease, background 0.25s ease, box-shadow 0.3s ease;
+}
+@media (hover: hover) {
+  .ix-landing .ix-l-nav-links a:hover {
+    transform: translateY(-2px) scale(1.14); color: var(--ix-l-fg);
+    background: rgba(255, 255, 255, 0.07); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 8px 22px -10px rgba(var(--ix-glow-a), 0.7);
+  }
+  .ix-landing .ix-l-nav-links a:hover + a, .ix-landing .ix-l-nav-links a:has(+ a:hover) { transform: scale(1.06); color: #c9c9cf; }
+}
+
+/* ---------- Buttons ---------- */
+.ix-landing :is(.ix-l-btn-solid, .ix-l-btn-ghost, .ix-ps-boost, .ix-ps-optional-toggle) {
+  position: relative; overflow: hidden; isolation: isolate;
+  transition: transform 0.35s var(--ix-spring), box-shadow 0.35s ease, background 0.25s ease, color 0.2s ease, border-color 0.25s ease;
+}
+/* The light sweep across a solid button. */
+.ix-landing .ix-l-btn-solid::after {
+  content: ""; position: absolute; top: 0; bottom: 0; left: -75%; width: 55%; pointer-events: none;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.85), transparent);
+  transform: skewX(-18deg); transition: left 0.7s var(--ix-ease);
+}
+@media (hover: hover) {
+  .ix-landing .ix-l-btn-solid:not(:disabled):hover {
+    transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 14px 34px -10px rgba(var(--ix-glow-a), 0.65), 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 0 28px -4px rgba(var(--ix-glow-b), 0.45);
+  }
+  .ix-landing .ix-l-btn-solid:not(:disabled):hover::after { left: 130%; }
+  .ix-landing .ix-l-btn-ghost:hover { background: rgba(255, 255, 255, 0.07); transform: translateY(-1px) scale(1.04); box-shadow: 0 8px 22px -12px rgba(var(--ix-glow-a), 0.7); }
+}
+.ix-landing :is(.ix-l-btn-solid, .ix-l-btn-ghost, .ix-ps-boost):not(:disabled):active { transform: scale(0.96); transition-duration: 0.1s; }
+
+/* The main call to action on a page breathes a soft ring, so the eye finds it. */
+.ix-landing :is(.ix-l-hero-ctas > .ix-l-btn-solid:first-child, .ix-ps-submit:not(:disabled), .ix-ps-cta-btn) { animation: ix-cta-pulse 2.8s ease-out infinite; }
+@keyframes ix-cta-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(var(--ix-glow-a), 0.55), 0 6px 18px rgba(0, 0, 0, 0.35); }
+  70% { box-shadow: 0 0 0 14px rgba(var(--ix-glow-a), 0), 0 6px 18px rgba(0, 0, 0, 0.35); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--ix-glow-a), 0), 0 6px 18px rgba(0, 0, 0, 0.35); }
+}
+
+/* ---------- Inputs: a lit focus ring ---------- */
+.ix-landing :is([data-slot="input"], [data-slot="textarea"], .ix-l-select) { transition: border-color 0.2s ease, box-shadow 0.3s ease, background 0.2s ease; }
+.ix-landing :is([data-slot="input"], [data-slot="textarea"], .ix-l-select):focus-visible {
+  outline: none; border-color: rgba(var(--ix-glow-a), 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(var(--ix-glow-a), 0.16), 0 0 26px -4px rgba(var(--ix-glow-a), 0.35) !important;
+}
+
+/* ---------- Footer and section dividers pick up a faint gradient ---------- */
+.ix-landing .ix-l-section { border-top-color: transparent; }
+.ix-landing .ix-l-section::before {
+  content: ""; position: absolute; top: 0; left: 32px; right: 32px; height: 1px; pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgba(var(--ix-glow-a), 0.35), rgba(var(--ix-glow-b), 0.3), transparent);
+}
+
+/* ---------- Phones: smaller, calmer glows ---------- */
+@media (max-width: 760px) {
+  .ix-ambient i { filter: blur(50px); }
+  .ix-ambient-tl { opacity: 0.4; } .ix-ambient-br { opacity: 0.35; } .ix-ambient-tr { opacity: 0.3; }
+  .ix-ambient-spot { display: none; }
+  .ix-landing .ix-l-section::before { left: 20px; right: 20px; }
+}
+
+/* ---------- Reduce motion: keep the light, drop the movement ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .ix-ambient i, .ix-landing .ix-l-eyebrow::before,
+  .ix-landing :is(.ix-l-hero-ctas > .ix-l-btn-solid:first-child, .ix-ps-submit, .ix-ps-cta-btn) { animation: none !important; }
+  .ix-landing *, .ix-landing *::before, .ix-landing *::after { transition-duration: 0.01ms !important; }
+  .ix-landing :is(.ix-l-card, .ix-l-step, .ix-l-workspace-card, .ix-l-nav-links a, .ix-l-btn-solid, .ix-l-btn-ghost, .ix-l-icon, .ix-ps-cta-icon, .ix-l-mark):hover { transform: none !important; }
+  .ix-ambient-spot { display: none; }
+}

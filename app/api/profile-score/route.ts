@@ -2,20 +2,26 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { leads } from "@/db/schema";
 import { isTrustedOrigin } from "@/lib/http";
-import { fetchPublicProfileSnapshot, type PublicProfileSnapshot } from "@/lib/upwork-fetch";
+import { fetchPublicProfileSnapshot, type PublicProfileSnapshot, type PublicSnapshotResult } from "@/lib/upwork-fetch";
 import { consume, refund, requestIdentity, type Bucket } from "@/lib/security/email-throttle";
 import { privacyHash } from "@/lib/security/browser-id";
 import {
   assembleResult, buildScoringPrompt, callScorer, leadSummary, measureOverview, measureTitle,
-  parseAiScores, validateScoreRequest, ScoringError,
+  nothingToScore, parseAiScores, validateScoreRequest, ScoringError, type AiScores,
 } from "@/lib/profile-score";
 
-// The free public profile score. A signed-out visitor sends their Upwork link, their overview,
-// email and WhatsApp number; we save them as a lead, read the public header of the profile, score
-// it (lib/profile-score.ts) and return the score on the same page.
+// The free public profile score. A signed-out visitor sends their Upwork link and WhatsApp number,
+// optionally their email and overview; we save them as a lead, read the public header of the
+// profile, score it (lib/profile-score.ts) and return the score on the same page.
+//
+// Reading the profile: one plain, honestly identified request per attempt to the public profile
+// URL, retried with a pause when Upwork is slow or refuses. No proxies, no disguised browser, no
+// login, no private endpoints. Upwork's automation policy forbids scraping and Improvexus's own
+// agency work runs on Upwork accounts, so when Upwork says no, we ask the visitor for the overview
+// instead of trying to get around it.
 //
 // Every request costs a model call, so it is rate limited per browser, per network address and per
-// email address, and the limiter FAILS CLOSED: if it can't be checked, nothing is scored. (The
+// WhatsApp number, and the limiter FAILS CLOSED: if it can't be checked, nothing is scored. (The
 // enquiry form's limiter fails open because losing a lead is worse than a spam row; here the risk
 // is an unbounded AI bill.) A failed scoring attempt gives the allowance back.
 
@@ -27,13 +33,29 @@ function num(name: string, fallback: number) {
   return Number.isFinite(n) && n > 0 ? n : fallback;
 }
 
-async function buckets(email: string): Promise<Bucket[]> {
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+/** Up to three polite attempts, a few seconds apart. The visitor sees a progress list meanwhile. */
+async function readPublicProfile(url: string): Promise<PublicSnapshotResult> {
+  const pauses = [0, 3000, 6000];
+  let last: PublicSnapshotResult = { ok: false, outcome: "unavailable", message: "" };
+  for (const pause of pauses) {
+    if (pause) await sleep(pause);
+    last = await fetchPublicProfileSnapshot(url);
+    if (last.ok || last.outcome === "invalid") return last;
+  }
+  return last;
+}
+
+async function buckets(whatsappE164: string): Promise<Bucket[]> {
   const identity = await requestIdentity();
   const lock = num("PROFILE_SCORE_LOCK_MINUTES", 60);
   const list: Bucket[] = [
     // Generous per network: many people in Pakistan share one carrier or campus address.
     { key: `score:ip:${identity.ipHash}`, rule: { limit: num("PROFILE_SCORE_IP_LIMIT", 20), windowMinutes: 60, lockMinutes: lock } },
-    { key: `score:recipient:${await privacyHash("email", email)}`, rule: { limit: num("PROFILE_SCORE_EMAIL_LIMIT", 5), windowMinutes: 24 * 60, lockMinutes: lock } },
+    // Per WhatsApp number (the one contact detail that's required), so changing the email
+    // address, which is optional, doesn't reset anything.
+    { key: `score:recipient:${await privacyHash("whatsapp", whatsappE164)}`, rule: { limit: num("PROFILE_SCORE_CONTACT_LIMIT", 5), windowMinutes: 24 * 60, lockMinutes: lock } },
   ];
   if (identity.browserId) list.push({ key: `score:browser:${identity.browserId}`, rule: { limit: num("PROFILE_SCORE_BROWSER_LIMIT", 5), windowMinutes: 60, lockMinutes: lock } });
   return list;
@@ -54,11 +76,11 @@ export async function POST(request: Request) {
   // 1. Allowance.
   let bucketList: Bucket[];
   try {
-    bucketList = await buckets(req.email);
+    bucketList = await buckets(req.whatsappE164);
     const gate = await consume(bucketList);
     if (!gate.ok) {
       const minutes = Math.max(1, Math.ceil(gate.retryAfterSeconds / 60));
-      const who = gate.reason === "recipient" ? "this email address" : gate.reason === "browser" ? "this browser" : "your network";
+      const who = gate.reason === "recipient" ? "this WhatsApp number" : gate.reason === "browser" ? "this browser" : "your network";
       return json({ error: `You've used the free scores available for ${who} for now. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}, or open a full audit for the complete picture.` }, 429, { "Retry-After": String(gate.retryAfterSeconds) });
     }
   } catch (error) {
@@ -89,36 +111,49 @@ export async function POST(request: Request) {
     return json({ error: "Your details could not be saved right now. Please try again." }, 503);
   }
 
-  // 3. Public header of the profile. A failure is not fatal: the overview is still scored, and the
-  //    parts we couldn't read are shown as "not checked".
+  // 3. Public header of the profile. A failure is not fatal when an overview was supplied.
   let snapshot: PublicProfileSnapshot | null = null;
-  const fetched = await fetchPublicProfileSnapshot(req.profileUrl);
+  const fetched = await readPublicProfile(req.profileUrl);
   if (fetched.ok) snapshot = fetched.snapshot;
   else console.info("Profile score: public profile not readable", fetched.outcome);
 
-  // 4. Score. One retry if the model's answer isn't the JSON object we asked for.
-  const om = measureOverview(req.overview);
-  const tm = snapshot?.title ? measureTitle(snapshot.title) : null;
-  const prompt = buildScoringPrompt(snapshot?.title ?? null, req.overview, tm, om, snapshot);
-  let ai = null;
-  try {
-    for (let attempt = 0; attempt < 2 && !ai; attempt++) {
-      const text = await callScorer(attempt === 0 ? prompt : `${prompt}\n\nYour previous answer was not the JSON object described. Return only that JSON object.`);
-      ai = parseAiScores(text);
-      if (!ai) console.error(`Profile score: model answer was not valid JSON (attempt ${attempt + 1})`);
-    }
-  } catch (error) {
+  if (nothingToScore(snapshot, req.overview)) {
     await giveBack();
-    const diag = error instanceof ScoringError ? { message: error.message, ...error.diagnostics } : { message: error instanceof Error ? error.name : "UnknownError" };
-    console.error("Profile score: AI scoring failed", diag);
-    return json({ error: "We couldn't score your profile right now. Please try again in a minute." }, 502);
-  }
-  if (!ai) {
-    await giveBack();
-    return json({ error: "We couldn't score your profile right now. Please try again in a minute." }, 502);
+    await db.update(leads).set({ goals: "Free profile score: Upwork profile could not be read and no overview was given." })
+      .where(eq(leads.id, req.submissionId)).catch(() => {});
+    return json({
+      code: "NEEDS_OVERVIEW",
+      error: "Upwork didn't let us read your profile automatically just now. Paste your overview below and we'll score it, or try again in a few minutes.",
+      fields: { overview: "Paste the overview from your Upwork profile to get your score." },
+    }, 422);
   }
 
-  const result = assembleResult(snapshot, ai, om);
+  // 4. Claude judges the title and, when supplied, the overview. With neither (only stats were
+  //    readable) the score is built from the stats alone and no model call is made.
+  const om = req.overview ? measureOverview(req.overview) : null;
+  const tm = snapshot?.title ? measureTitle(snapshot.title) : null;
+  let ai: AiScores | null = null;
+  if (tm || om) {
+    const prompt = buildScoringPrompt(snapshot?.title ?? null, req.overview, tm, om, snapshot);
+    try {
+      for (let attempt = 0; attempt < 2 && !ai; attempt++) {
+        const text = await callScorer(attempt === 0 ? prompt : `${prompt}\n\nYour previous answer was not the JSON object described. Return only that JSON object.`);
+        ai = parseAiScores(text);
+        if (!ai) console.error(`Profile score: model answer was not valid JSON (attempt ${attempt + 1})`);
+      }
+    } catch (error) {
+      await giveBack();
+      const diag = error instanceof ScoringError ? { message: error.message, ...error.diagnostics } : { message: error instanceof Error ? error.name : "UnknownError" };
+      console.error("Profile score: AI scoring failed", diag);
+      return json({ error: "We couldn't score your profile right now. Please try again in a minute." }, 502);
+    }
+    if (!ai) {
+      await giveBack();
+      return json({ error: "We couldn't score your profile right now. Please try again in a minute." }, 502);
+    }
+  }
+
+  const result = assembleResult(snapshot, ai, Boolean(om && ai));
 
   // 5. Record the outcome on the lead so the admin inbox shows the score next to the contact.
   await db.update(leads)

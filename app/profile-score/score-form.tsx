@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowRight, CircleAlert, CircleCheck, CircleDashed, FileSearch, LoaderCircle, Lock } from "lucide-react";
+import { ArrowRight, ChevronDown, CircleAlert, CircleCheck, CircleDashed, FileSearch, LoaderCircle, Lock, MessageCircle, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -12,10 +12,12 @@ import type { ProfileScoreResult, ScoreFieldErrors, ScoreFieldKey } from "@/lib/
 // that module reaches the database through lib/leads.ts and must never be bundled for the browser.
 // The server re-checks every rule, so a drift here could only make the button too eager, never
 // let a bad request through.
-const OVERVIEW_MIN = 150;
+const OVERVIEW_MIN = 80;
 const OVERVIEW_MAX = 5000;
 
-const STEPS = ["Reading your public Upwork profile", "Comparing it with top profiles", "Working out your score"];
+// Reading the profile can take up to about half a minute when Upwork is slow (the server waits and
+// tries again rather than giving up), so the visitor is shown what is happening the whole time.
+const STEPS = ["Opening your Upwork profile", "Reading your title and stats", "Comparing you with top profiles", "Working out your score"];
 
 function looksLikeProfileLink(value: string) {
   return /^(https?:\/\/)?(www\.)?upwork\.com\/(freelancers|fl)\/[^/\s?#]+/i.test(value.trim());
@@ -23,10 +25,11 @@ function looksLikeProfileLink(value: string) {
 
 export function ScoreForm({ signedIn }: { signedIn: boolean }) {
   const [profileUrl, setProfileUrl] = useState("");
-  const [overview, setOverview] = useState("");
-  const [email, setEmail] = useState("");
   const [waCountry, setWaCountry] = useState("");
   const [waNumber, setWaNumber] = useState("");
+  const [email, setEmail] = useState("");
+  const [overview, setOverview] = useState("");
+  const [showOverview, setShowOverview] = useState(false);
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -36,6 +39,7 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
   const [fields, setFields] = useState<ScoreFieldErrors>({});
   const [result, setResult] = useState<ProfileScoreResult | null>(null);
   const resultRef = useRef<HTMLDivElement>(null);
+  const overviewRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -46,7 +50,7 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
   useEffect(() => {
     if (!busy) return;
     setStep(0);
-    const timer = window.setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 4500);
+    const timer = window.setInterval(() => setStep(s => Math.min(s + 1, STEPS.length - 1)), 6000);
     return () => window.clearInterval(timer);
   }, [busy]);
 
@@ -59,15 +63,20 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
   const clear = (key: ScoreFieldKey) => setFields(f => (f[key] ? { ...f, [key]: undefined } : f));
   const overviewLength = overview.trim().length;
 
+  function openOverview(focus = true) {
+    setShowOverview(true);
+    if (focus) requestAnimationFrame(() => { overviewRef.current?.focus({ preventScroll: true }); overviewRef.current?.scrollIntoView({ block: "center", behavior: "smooth" }); });
+  }
+
   // The button only switches on once everything the server will ask for is present. What is still
   // missing is spelled out under it, so a disabled button never leaves anyone guessing.
   const missing: string[] = [];
   if (!looksLikeProfileLink(profileUrl)) missing.push("your Upwork profile link");
-  if (overviewLength < OVERVIEW_MIN) missing.push("your overview");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) missing.push("your email");
   if (!waCountry || waNumber.replace(/\D/g, "").length < 6) missing.push("your WhatsApp number");
   if (!consent) missing.push("your agreement below");
-  const ready = missing.length === 0 && overviewLength <= OVERVIEW_MAX;
+  const emailOk = !email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+  const overviewOk = overviewLength === 0 || (overviewLength >= OVERVIEW_MIN && overviewLength <= OVERVIEW_MAX);
+  const ready = missing.length === 0 && emailOk && overviewOk;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -82,9 +91,10 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
           whatsappCountry: waCountry, whatsappNumber: waNumber, consent, website,
         }),
       });
-      const body = await response.json() as { result?: ProfileScoreResult; error?: string; fields?: ScoreFieldErrors };
+      const body = await response.json() as { result?: ProfileScoreResult; error?: string; code?: string; fields?: ScoreFieldErrors };
       if (!response.ok || !body.result) {
         if (body.fields && Object.keys(body.fields).length) setFields(body.fields);
+        if (body.code === "NEEDS_OVERVIEW") openOverview();
         throw new Error(body.error || "We couldn't score your profile right now. Please try again.");
       }
       setResult(body.result);
@@ -112,38 +122,43 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
         </div>
 
         <div className="ix-l-field">
-          <label htmlFor="ps-overview">Your profile overview</label>
-          <p className="ix-l-field-help">Upwork only shows your title and stats to people who aren&apos;t signed in, so paste the overview text from your profile here.</p>
-          <Textarea id="ps-overview" className="ix-ps-overview" maxLength={OVERVIEW_MAX} value={overview} disabled={busy}
-            onChange={e => { setOverview(e.target.value); clear("overview"); }}
-            aria-invalid={!!fields.overview || undefined} aria-describedby={describe("overview") ?? "ps-overview-count"}
-            placeholder="Paste the overview (the About section) from your Upwork profile." />
-          <p className="ix-l-field-count" id="ps-overview-count" aria-live="polite" data-ok={overviewLength >= OVERVIEW_MIN ? "true" : undefined}>
-            {overviewLength < OVERVIEW_MIN ? `${OVERVIEW_MIN - overviewLength} more characters needed` : `${overviewLength.toLocaleString("en-US")} characters`}
-          </p>
-          {fieldError("overview")}
+          <label htmlFor="ps-whatsapp">WhatsApp number</label>
+          <div className="ix-l-phone">
+            <CountrySelect full={mounted} id="ps-whatsapp-country" label="Country code for your WhatsApp number" value={waCountry} disabled={busy}
+              invalid={!!fields.whatsapp} onChange={iso => { setWaCountry(iso); clear("whatsapp"); }} />
+            <Input id="ps-whatsapp" type="tel" inputMode="tel" autoComplete="tel-national" maxLength={20} value={waNumber} disabled={busy}
+              onChange={e => { setWaNumber(e.target.value); clear("whatsapp"); }}
+              aria-invalid={!!fields.whatsapp || undefined} aria-describedby={describe("whatsapp")}
+              placeholder={waCountry === "PK" ? "300 1234567" : "WhatsApp number"} />
+          </div>
+          {fieldError("whatsapp")}
         </div>
 
-        <div className="ix-ps-two">
-          <div className="ix-l-field">
-            <label htmlFor="ps-email">Email</label>
-            <Input id="ps-email" type="email" autoComplete="email" maxLength={254} value={email} disabled={busy}
-              onChange={e => { setEmail(e.target.value); clear("email"); }}
-              aria-invalid={!!fields.email || undefined} aria-describedby={describe("email")} placeholder="you@example.com" />
-            {fieldError("email")}
-          </div>
-          <div className="ix-l-field">
-            <label htmlFor="ps-whatsapp">WhatsApp number</label>
-            <div className="ix-l-phone">
-              <CountrySelect full={mounted} id="ps-whatsapp-country" label="Country code for your WhatsApp number" value={waCountry} disabled={busy}
-                invalid={!!fields.whatsapp} onChange={iso => { setWaCountry(iso); clear("whatsapp"); }} />
-              <Input id="ps-whatsapp" type="tel" inputMode="tel" autoComplete="tel-national" maxLength={20} value={waNumber} disabled={busy}
-                onChange={e => { setWaNumber(e.target.value); clear("whatsapp"); }}
-                aria-invalid={!!fields.whatsapp || undefined} aria-describedby={describe("whatsapp")}
-                placeholder={waCountry === "PK" ? "300 1234567" : "WhatsApp number"} />
+        <div className="ix-l-field">
+          <label htmlFor="ps-email">Email <span>optional</span></label>
+          <Input id="ps-email" type="email" autoComplete="email" maxLength={254} value={email} disabled={busy}
+            onChange={e => { setEmail(e.target.value); clear("email"); }}
+            aria-invalid={!!fields.email || !emailOk || undefined} aria-describedby={describe("email")} placeholder="you@example.com" />
+          {fieldError("email") ?? (!emailOk ? <p className="ix-l-field-error">Enter a valid email address, or leave it empty.</p> : null)}
+        </div>
+
+        <div className={`ix-ps-optional ${showOverview ? "is-open" : ""}`}>
+          <button type="button" className="ix-ps-optional-toggle" aria-expanded={showOverview} aria-controls="ps-overview-panel" onClick={() => (showOverview ? setShowOverview(false) : openOverview())}>
+            <Sparkles size={15} /> Add your overview for a fuller score <span>optional</span> <ChevronDown size={15} className="ix-ps-chevron" />
+          </button>
+          {showOverview && (
+            <div className="ix-l-field" id="ps-overview-panel">
+              <p className="ix-l-field-help">Upwork keeps the overview hidden from people who aren&apos;t signed in, so we can only score it if you paste it here. Without it we score your title, stats, rate and offer.</p>
+              <Textarea id="ps-overview" ref={overviewRef} className="ix-ps-overview" maxLength={OVERVIEW_MAX} value={overview} disabled={busy}
+                onChange={e => { setOverview(e.target.value); clear("overview"); }}
+                aria-label="Your profile overview" aria-invalid={!!fields.overview || !overviewOk || undefined} aria-describedby={describe("overview") ?? "ps-overview-count"}
+                placeholder="Paste the overview (the About section) from your Upwork profile." />
+              <p className="ix-l-field-count" id="ps-overview-count" aria-live="polite" data-ok={overviewLength >= OVERVIEW_MIN ? "true" : undefined}>
+                {overviewLength === 0 ? "Leave empty to skip" : overviewLength < OVERVIEW_MIN ? `${OVERVIEW_MIN - overviewLength} more characters, or leave it empty` : `${overviewLength.toLocaleString("en-US")} characters`}
+              </p>
+              {fieldError("overview")}
             </div>
-            {fieldError("whatsapp")}
-          </div>
+          )}
         </div>
 
         <div className="ix-l-honeypot" aria-hidden="true"><label htmlFor="ps-website">Website</label><input id="ps-website" tabIndex={-1} autoComplete="off" value={website} onChange={e => setWebsite(e.target.value)} /></div>
@@ -151,7 +166,7 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
         <label className="ix-l-consent" htmlFor="ps-consent">
           <Checkbox id="ps-consent" checked={consent} disabled={busy} onCheckedChange={v => { setConsent(v === true); clear("consent"); }}
             aria-invalid={!!fields.consent || undefined} aria-describedby={describe("consent")} />
-          <span>I agree to share my email and WhatsApp number with Improvexus and to be contacted about my profile score.</span>
+          <span>I agree to share my WhatsApp number (and email, if I added one) with Improvexus and to be contacted about my profile score.</span>
         </label>
         {fieldError("consent")}
 
@@ -160,30 +175,33 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
         <button type="submit" className="ix-l-btn-solid ix-l-submit ix-ps-submit" disabled={!ready || busy}>
           {busy ? <><LoaderCircle size={16} className="ix-ps-spin" /> Scoring your profile…</> : <>Score my profile <ArrowRight size={15} /></>}
         </button>
-        {!busy && !ready && <p className="ix-ps-missing">To switch this on, add {missing.length ? joinList(missing) : "a shorter overview"}.</p>}
+        {!busy && missing.length > 0 && <p className="ix-ps-missing">To switch this on, add {joinList(missing)}.</p>}
         {busy && (
-          <ol className="ix-ps-steps" aria-live="polite">
-            {STEPS.map((label, i) => (
-              <li key={label} data-state={i < step ? "done" : i === step ? "active" : "todo"}>
-                {i < step ? <CircleCheck size={15} /> : i === step ? <LoaderCircle size={15} className="ix-ps-spin" /> : <CircleDashed size={15} />}
-                {label}
-              </li>
-            ))}
-          </ol>
+          <div className="ix-ps-wait" aria-live="polite">
+            <ol className="ix-ps-steps">
+              {STEPS.map((label, i) => (
+                <li key={label} data-state={i < step ? "done" : i === step ? "active" : "todo"}>
+                  {i < step ? <CircleCheck size={15} /> : i === step ? <LoaderCircle size={15} className="ix-ps-spin" /> : <CircleDashed size={15} />}
+                  {label}
+                </li>
+              ))}
+            </ol>
+            <p>This can take up to a minute when Upwork is slow. Keep this page open.</p>
+          </div>
         )}
       </form>
 
       {result ? (
-        <ScoreResult result={result} auditHref={auditHref} signedIn={signedIn} innerRef={resultRef} />
+        <ScoreResult result={result} auditHref={auditHref} signedIn={signedIn} innerRef={resultRef} onAddOverview={() => { setResult(null); openOverview(); }} />
       ) : (
         <aside className="ix-ps-aside">
           <h2>What you get</h2>
           <ul>
             <li>A score out of 100, measured against the pattern top Upwork profiles follow.</li>
-            <li>Points for your title, track record, opening lines, structure, proof and closing.</li>
+            <li>Points for your title, track record, rate and offer, and your overview if you add it.</li>
             <li>The three changes that would raise your score the most.</li>
           </ul>
-          <p>It&apos;s free and takes about half a minute. Your overview is used only to work out your score.</p>
+          <p className="ix-ps-aside-note"><MessageCircle size={14} /> We&apos;ll only use your WhatsApp number to talk to you about your score.</p>
         </aside>
       )}
     </div>
@@ -195,7 +213,11 @@ function joinList(items: string[]) {
   return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
-function ScoreResult({ result, auditHref, signedIn, innerRef }: { result: ProfileScoreResult; auditHref: string; signedIn: boolean; innerRef: React.RefObject<HTMLDivElement | null> }) {
+function StatLines({ lines }: { lines: { label: string; value: string }[] }) {
+  return <dl className="ix-ps-track">{lines.map(line => <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>)}</dl>;
+}
+
+function ScoreResult({ result, auditHref, signedIn, innerRef, onAddOverview }: { result: ProfileScoreResult; auditHref: string; signedIn: boolean; innerRef: React.RefObject<HTMLDivElement | null>; onAddOverview: () => void }) {
   const tone = result.score >= 85 ? "strong" : result.score >= 70 ? "good" : result.score >= 50 ? "mid" : "weak";
   return (
     <div className="ix-ps-result" ref={innerRef} tabIndex={-1} aria-labelledby="ps-score-heading">
@@ -207,24 +229,27 @@ function ScoreResult({ result, auditHref, signedIn, innerRef }: { result: Profil
           <span className="ix-l-eyebrow">YOUR PROFILE SCORE</span>
           <h2 id="ps-score-heading">{result.band}</h2>
           {result.profile.title && <p className="ix-ps-title">&ldquo;{result.profile.title}&rdquo;</p>}
-          {result.assessedPoints < 100 && <p className="ix-ps-partial">Based on the {result.assessedPoints} of 100 points we could check. The rest is marked below.</p>}
+          {result.assessedPoints < 100 && <p className="ix-ps-partial">Based on the {result.assessedPoints} of 100 points we could check.</p>}
         </div>
       </div>
 
+      {!result.overviewScored && (
+        <button type="button" className="ix-ps-boost" onClick={onAddOverview}>
+          <Sparkles size={16} /> Add your overview to score the other {100 - result.assessedPoints} points <ArrowRight size={14} />
+        </button>
+      )}
+
       <ul className="ix-ps-sections">
-        {result.sections.map(section => (
-          <li key={section.id} data-checked={section.checked ? "true" : "false"}>
+        {result.sections.map((section, i) => (
+          <li key={section.id} data-checked={section.checked ? "true" : "false"} style={{ ["--ix-ps-i" as string]: i }}>
             <div className="ix-ps-row">
               <span>{section.label}</span>
               <b>{section.checked ? `${section.points} of ${section.max}` : "Not checked"}</b>
             </div>
             {section.checked && <div className="ix-ps-bar" aria-hidden="true"><i style={{ width: `${Math.round(((section.points ?? 0) / section.max) * 100)}%` }} /></div>}
             {section.note && <p>{section.note}</p>}
-            {section.id === "track" && result.track && (
-              <dl className="ix-ps-track">
-                {result.track.lines.map(line => <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>)}
-              </dl>
-            )}
+            {section.id === "track" && result.track && <StatLines lines={result.track.lines} />}
+            {section.id === "offer" && result.offer && <StatLines lines={result.offer.lines} />}
           </li>
         ))}
       </ul>

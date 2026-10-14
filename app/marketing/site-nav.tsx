@@ -2,6 +2,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
+import { AmbientLight } from "./ambient-light";
 
 // The public site's top bar — one definition for the landing page, the service screens and the
 // location pages, so a visitor (and a crawler) finds the same way around on every one of them.
@@ -18,6 +19,8 @@ export function SiteNav() {
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <>
+      {/* The page's moving light layer sits with the nav because every public page renders the nav. */}
+      <AmbientLight />
       <nav className="ix-l-nav" aria-label="Main">
         <Link href="/" className="ix-l-brand" aria-label="Improvexus home"><span className="ix-l-mark" aria-hidden="true">I</span><span className="ix-l-wordmark">IMPROVEXUS</span></Link>
         <div className="ix-l-nav-links">

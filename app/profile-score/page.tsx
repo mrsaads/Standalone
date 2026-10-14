@@ -16,7 +16,7 @@ import "./profile-score.css";
 
 export const dynamic = "force-dynamic";
 
-const DESCRIPTION = "Get a free Upwork profile score out of 100. We compare your title, track record and overview with the pattern top Upwork profiles follow, and show you what to fix first.";
+const DESCRIPTION = "Get a free Upwork profile score out of 100 from your profile link. We compare your title, track record, rate and offer with the pattern top Upwork profiles follow, and show you what to fix first.";
 
 export const metadata: Metadata = {
   title: "Free Upwork Profile Score out of 100",
@@ -40,7 +40,7 @@ export default async function ProfileScorePage() {
           </ol>
           <span className="ix-l-eyebrow">FREE UPWORK PROFILE SCORE</span>
           <h1>How does your Upwork profile score out of 100?</h1>
-          <p className="ix-m-lede">Paste your profile link and your overview. We check your title, your track record and how your overview reads against the pattern top Upwork profiles follow, then show your score and the three changes that would raise it most.</p>
+          <p className="ix-m-lede">Paste your Upwork profile link and your WhatsApp number. We read your public profile, check your title, track record, rate and offer against the pattern top Upwork profiles follow, then show your score and the three changes that would raise it most.</p>
         </header>
         <section className="ix-ps-section" aria-label="Score your profile">
           <ScoreForm signedIn={Boolean(user)} />

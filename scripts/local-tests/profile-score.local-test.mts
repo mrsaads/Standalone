@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import { parsePublicProfile } from "../../lib/upwork-fetch";
 import {
-  assembleResult, measureOverview, measureTitle, parseAiScores, scoreTrackRecord, validateScoreRequest, SCORE_SECTIONS, SCORING_INSTRUCTIONS,
+  assembleResult, measureOverview, measureTitle, nothingToScore, parseAiScores, scoreOffer, scoreTrackRecord, validateScoreRequest, SCORE_SECTIONS, SCORING_INSTRUCTIONS,
 } from "../../lib/profile-score";
 
 let passed = 0;
@@ -70,7 +70,8 @@ check("track record: a brand-new profile is not punished for a missing Job Succe
   assert.equal(scoreTrackRecord({ name: null, title: "x", location: null, jss: null, badge: null, rating: null, reviews: null, totalJobs: null, totalHours: null, hourlyRate: null, consultation: null }), null);
 });
 
-check("section maximums add up to exactly 100", () => {
+check("section maximums add up to exactly 100, link-only sections add up to 55", () => {
+  assert.equal(SCORE_SECTIONS.filter(s => s.needs !== "overview").reduce((a, s) => a + s.max, 0), 55);
   assert.equal(SCORE_SECTIONS.reduce((a, s) => a + s.max, 0), 100);
 });
 
@@ -93,10 +94,10 @@ const goodAnswer = JSON.stringify({
 
 check("model answer: points clamped to each section, dashes removed, flaws capped at three", () => {
   const ai = parseAiScores("```json\n" + goodAnswer + "\n```")!;
-  assert.equal(ai.sections.hook.points, 15);   // 40 clamped to the 15 maximum
+  assert.equal(ai.sections.hook.points, 12);   // 40 clamped to the 12 maximum
   assert.equal(ai.sections.flow.points, 0);    // negative clamped to 0
   assert.equal(ai.sections.proof.points, 7);   // "7" coerced
-  assert.equal(ai.sections.keywords.points, 7);
+  assert.equal(ai.sections.keywords.points, 5); // 6.6 rounds to 7, clamped to the 5 maximum
   assert.ok(!/[–—]/.test(ai.sections.hook.note));
   assert.equal(ai.topFlaws.length, 3);
 });
@@ -107,23 +108,50 @@ check("model answer: prose around the JSON is tolerated, garbage returns null", 
   assert.equal(parseAiScores(`{"title": 5}`), null);
 });
 
-check("result: score is scaled over what could be checked, unread parts marked not checked", () => {
+check("offer: rate shown, consultation, rate fit; both benchmarks get full marks", () => {
+  const mateen = scoreOffer(parsePublicProfile(BENCHMARK_HTML))!;
+  assert.equal(mateen.points, 10);
+  const cheapPro = scoreOffer({ name: null, title: "x", location: null, jss: 100, badge: "Top Rated", rating: 5, reviews: 30, totalJobs: 40, totalHours: 2000, hourlyRate: 8, consultation: null })!;
+  assert.equal(cheapPro.points, 3 + 0 + 1);
+  assert.match(cheapPro.note, /low for a track record/);
+  const noRate = scoreOffer({ name: null, title: "x", location: null, jss: null, badge: null, rating: null, reviews: null, totalJobs: 0, totalHours: 0, hourlyRate: null, consultation: null })!;
+  assert.equal(noRate.points, 0);
+});
+
+check("result with link only: title, track and offer scored, overview sections not scored", () => {
   const ai = parseAiScores(goodAnswer)!;
-  const om = measureOverview("x".repeat(400));
-  const full = assembleResult(parsePublicProfile(BENCHMARK_HTML), ai, om);
+  const linkOnly = assembleResult(parsePublicProfile(BENCHMARK_HTML), ai, false);
+  assert.equal(linkOnly.assessedPoints, 55);  // title 20 + track 25 + offer 10
+  assert.equal(linkOnly.overviewScored, false);
+  assert.equal(linkOnly.score, Math.round(((18 + 25 + 10) / 55) * 100));
+  assert.equal(linkOnly.sections.find(s => s.id === "hook")!.checked, false);
+  assert.equal(linkOnly.notChecked[0], "Overview");
+});
+
+check("result with link and overview: all 100 points assessed", () => {
+  const ai = parseAiScores(goodAnswer)!;
+  const full = assembleResult(parsePublicProfile(BENCHMARK_HTML), ai, true);
   assert.equal(full.assessedPoints, 100);
-  const earned = 18 + 25 + 15 + 0 + 7 + 7 + 2;
-  assert.equal(full.score, earned);
-  const noFetch = assembleResult(null, ai, om);
-  assert.equal(noFetch.assessedPoints, 55); // title (20) and track record (25) not readable
-  assert.equal(noFetch.sections.find(s => s.id === "track")!.checked, false);
-  assert.equal(noFetch.sections.find(s => s.id === "title")!.points, null);
-  assert.equal(noFetch.score, Math.round(((15 + 0 + 7 + 7 + 2) / 55) * 100));
+  assert.equal(full.score, 18 + 25 + 10 + 12 + 0 + 7 + 5 + 2);
+});
+
+check("result when Upwork blocks the link but an overview was pasted: scaled over the overview", () => {
+  const ai = parseAiScores(goodAnswer)!;
+  const blocked = assembleResult(null, ai, true);
+  assert.equal(blocked.assessedPoints, 45);
+  assert.equal(blocked.score, Math.round(((12 + 0 + 7 + 5 + 2) / 45) * 100));
+  assert.equal(blocked.sections.find(s => s.id === "title")!.checked, false);
+});
+
+check("nothing to score only when the link gave nothing and no overview was pasted", () => {
+  assert.equal(nothingToScore(null, ""), true);
+  assert.equal(nothingToScore(null, "x".repeat(100)), false);
+  assert.equal(nothingToScore(parsePublicProfile(BENCHMARK_HTML), ""), false);
 });
 
 const validBase = {
   submissionId: "3b241101-e2bb-4255-8caf-4136c566a962", profileUrl: "www.upwork.com/freelancers/~01114e6fd03a39f726",
-  overview: "I help Shopify brands raise conversion. ".repeat(6), email: " Buddy@Example.com ",
+  overview: "", email: " Buddy@Example.com ",
   whatsappCountry: "PK", whatsappNumber: "0300 1234567", consent: true, website: "",
 };
 
@@ -138,16 +166,26 @@ check("request: a valid request is normalized (https added, email lowercased, tr
   }
 });
 
-check("request: every required field is enforced on the server", () => {
-  const r = validateScoreRequest({ ...validBase, profileUrl: "https://www.upwork.com/agencies/x", overview: "too short", email: "nope", whatsappNumber: "", consent: false });
+check("request: link, WhatsApp and consent are required, email and overview are not", () => {
+  const r = validateScoreRequest({ ...validBase, profileUrl: "https://www.upwork.com/agencies/x", whatsappNumber: "", consent: false });
   assert.equal(r.ok, false);
-  if (!r.ok) assert.deepEqual(Object.keys(r.fields).sort(), ["consent", "email", "overview", "profileUrl", "whatsapp"]);
+  if (!r.ok) assert.deepEqual(Object.keys(r.fields).sort(), ["consent", "profileUrl", "whatsapp"]);
+  const minimal = validateScoreRequest({ submissionId: validBase.submissionId, profileUrl: validBase.profileUrl, whatsappCountry: "PK", whatsappNumber: "3001234567", consent: true, website: "" });
+  assert.ok(minimal.ok);
+  if (minimal.ok) { assert.equal(minimal.value.email, ""); assert.equal(minimal.value.overview, ""); }
   assert.equal(validateScoreRequest({ ...validBase, extra: 1 }).ok, false);
+});
+
+check("request: an optional field that is filled in still has to be valid", () => {
+  const r = validateScoreRequest({ ...validBase, email: "nope", overview: "too short" });
+  assert.equal(r.ok, false);
+  if (!r.ok) assert.deepEqual(Object.keys(r.fields).sort(), ["email", "overview"]);
 });
 
 check("prompt treats the profile as untrusted data and asks for JSON only", () => {
   assert.match(SCORING_INSTRUCTIONS, /untrusted data/);
   assert.match(SCORING_INSTRUCTIONS, /Return exactly this JSON object/);
+  assert.match(SCORING_INSTRUCTIONS, /NOT PROVIDED/);
 });
 
 console.log(`\n${passed} checks passed`);
