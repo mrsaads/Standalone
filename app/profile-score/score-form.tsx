@@ -17,13 +17,13 @@ const OVERVIEW_MAX = 5000;
 
 // Reading the profile can take up to about half a minute when Upwork is slow (the server waits and
 // tries again rather than giving up), so the visitor is shown what is happening the whole time.
-const STEPS = ["Opening your Upwork profile", "Reading your title and stats", "Comparing you with top profiles", "Working out your score"];
+const STEPS = ["Opening your Upwork profile", "Reading your profile details", "Comparing you with top profiles", "Working out your score"];
 
 function looksLikeProfileLink(value: string) {
   return /^(https?:\/\/)?(www\.)?upwork\.com\/(freelancers|fl)\/[^/\s?#]+/i.test(value.trim());
 }
 
-export function ScoreForm({ signedIn }: { signedIn: boolean }) {
+export function ScoreForm({ signedIn, automaticImport = false }: { signedIn: boolean; automaticImport?: boolean }) {
   const [profileUrl, setProfileUrl] = useState("");
   const [waCountry, setWaCountry] = useState("");
   const [waNumber, setWaNumber] = useState("");
@@ -94,7 +94,7 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
       const body = await response.json() as { result?: ProfileScoreResult; error?: string; code?: string; fields?: ScoreFieldErrors };
       if (!response.ok || !body.result) {
         if (body.fields && Object.keys(body.fields).length) setFields(body.fields);
-        if (body.code === "NEEDS_OVERVIEW") openOverview();
+        if (!automaticImport && body.code === "NEEDS_OVERVIEW") openOverview();
         throw new Error(body.error || "We couldn't score your profile right now. Please try again.");
       }
       setResult(body.result);
@@ -142,7 +142,7 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
           {fieldError("email") ?? (!emailOk ? <p className="ix-l-field-error">Enter a valid email address, or leave it empty.</p> : null)}
         </div>
 
-        <div className={`ix-ps-optional ${showOverview ? "is-open" : ""}`}>
+        {!automaticImport && <div className={`ix-ps-optional ${showOverview ? "is-open" : ""}`}>
           <button type="button" className="ix-ps-optional-toggle" aria-expanded={showOverview} aria-controls="ps-overview-panel" onClick={() => (showOverview ? setShowOverview(false) : openOverview())}>
             <Sparkles size={15} /> Add your overview for a fuller score <span>optional</span> <ChevronDown size={15} className="ix-ps-chevron" />
           </button>
@@ -159,7 +159,7 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
               {fieldError("overview")}
             </div>
           )}
-        </div>
+        </div>}
 
         <div className="ix-l-honeypot" aria-hidden="true"><label htmlFor="ps-website">Website</label><input id="ps-website" tabIndex={-1} autoComplete="off" value={website} onChange={e => setWebsite(e.target.value)} /></div>
 
@@ -192,13 +192,13 @@ export function ScoreForm({ signedIn }: { signedIn: boolean }) {
       </form>
 
       {result ? (
-        <ScoreResult result={result} auditHref={auditHref} signedIn={signedIn} innerRef={resultRef} onAddOverview={() => { setResult(null); openOverview(); }} />
+        <ScoreResult result={result} auditHref={auditHref} signedIn={signedIn} innerRef={resultRef} automaticImport={automaticImport} onAddOverview={() => { setResult(null); openOverview(); }} />
       ) : (
         <aside className="ix-ps-aside">
           <h2>What you get</h2>
           <ul>
             <li>A score out of 100, measured against the pattern top Upwork profiles follow.</li>
-            <li>Points for your title, track record, rate and offer, and your overview if you add it.</li>
+            <li>Points for your title, track record, rate and offer{automaticImport ? ", and the overview read from your profile." : ", and your overview if you add it."}</li>
             <li>The three changes that would raise your score the most.</li>
           </ul>
           <p className="ix-ps-aside-note"><MessageCircle size={14} /> We&apos;ll only use your WhatsApp number to talk to you about your score.</p>
@@ -217,7 +217,7 @@ function StatLines({ lines }: { lines: { label: string; value: string }[] }) {
   return <dl className="ix-ps-track">{lines.map(line => <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>)}</dl>;
 }
 
-function ScoreResult({ result, auditHref, signedIn, innerRef, onAddOverview }: { result: ProfileScoreResult; auditHref: string; signedIn: boolean; innerRef: React.RefObject<HTMLDivElement | null>; onAddOverview: () => void }) {
+function ScoreResult({ result, auditHref, signedIn, innerRef, onAddOverview, automaticImport }: { automaticImport: boolean; result: ProfileScoreResult; auditHref: string; signedIn: boolean; innerRef: React.RefObject<HTMLDivElement | null>; onAddOverview: () => void }) {
   const tone = result.score >= 85 ? "strong" : result.score >= 70 ? "good" : result.score >= 50 ? "mid" : "weak";
   return (
     <div className="ix-ps-result" ref={innerRef} tabIndex={-1} aria-labelledby="ps-score-heading">
@@ -233,7 +233,7 @@ function ScoreResult({ result, auditHref, signedIn, innerRef, onAddOverview }: {
         </div>
       </div>
 
-      {!result.overviewScored && (
+      {!automaticImport && !result.overviewScored && (
         <button type="button" className="ix-ps-boost" onClick={onAddOverview}>
           <Sparkles size={16} /> Add your overview to score the other {100 - result.assessedPoints} points <ArrowRight size={14} />
         </button>

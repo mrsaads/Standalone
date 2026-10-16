@@ -1,11 +1,10 @@
 # Render Blueprint for the standalone Improvexus app. Import this repo in Render and it will
 # offer to create the service below from this file ("New +" → "Blueprint").
 #
-# This defines ONE web service (Next.js, standard Node — no SEPARATE background worker service is
-# needed: Drive filing and email sending are a persisted queue in Postgres, processed by an
+# The Next.js service handles the app and its persisted delivery queue via an
 # in-process poller that starts inside this same service via instrumentation.ts — see
-# lib/delivery-worker.ts). Uses the free-tier-friendly starter plan; change `plan` once real
-# traffic needs more.
+# lib/delivery-worker.ts. A separate Docker web service below handles Upwork browser capture.
+# The browser worker needs a paid instance and a persistent disk. See docs/upwork-browser.md.
 #
 # Every env var below with `sync: false` must be entered by hand in the Render dashboard after
 # import — see the handover's credential checklist for exactly what each one is and where to get
@@ -22,6 +21,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.22.2
+      # Add UPWORK_BROWSER_URL manually after a successful live capture.
+      # Both services need the same private token.
+      - key: UPWORK_BROWSER_TOKEN
+        sync: false
       # Supabase (Auth + Postgres)
       - key: SUPABASE_URL
         sync: false
@@ -83,3 +86,25 @@ services:
       # service, and lib/delivery-worker.ts falls back to it when building the "your audit is
       # ready" email's report link. Only set APP_ORIGIN by hand if serving from a custom domain
       # that should appear in that link instead of the onrender.com one.
+
+  - type: web
+    name: improvexus-upwork-browser
+    runtime: docker
+    dockerfilePath: ./scripts/upwork-browser/Dockerfile
+    dockerContext: .
+    plan: standard
+    region: oregon
+    healthCheckPath: /live
+    disk:
+      name: upwork-browser-session
+      mountPath: /var/data
+      sizeGB: 1
+    envVars:
+      - key: PORT
+        value: "3100"
+      - key: UPWORK_BROWSER_TOKEN
+        sync: false
+      - key: UPWORK_BROWSER_ADMIN_PASSWORD
+        sync: false
+      - key: UPWORK_BROWSER_LOGIN_MODE
+        value: "false"

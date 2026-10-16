@@ -43,7 +43,7 @@ export default async function ProfileScorePage() {
           <p className="ix-m-lede">Paste your Upwork profile link and your WhatsApp number. We read your public profile, check your title, track record, rate and offer against the pattern top Upwork profiles follow, then show your score and the three changes that would raise it most.</p>
         </header>
         <section className="ix-ps-section" aria-label="Score your profile">
-          <ScoreForm signedIn={Boolean(user)} />
+          <ScoreForm signedIn={Boolean(user)} automaticImport={Boolean(process.env.UPWORK_BROWSER_URL)} />
         </section>
       </main>
       <SiteFooter />

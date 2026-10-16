@@ -7,15 +7,14 @@ import type { PublicProfileSnapshot } from "@/lib/upwork-fetch";
 //
 // LINK FIRST. The visitor gives their Upwork link and WhatsApp number (email is optional). The
 // server reads the public header of the profile: title, Job Success, badge, rating, jobs, hours,
-// rate and consultation offer. The overview is optional: Upwork hides it from signed-out visitors,
-// so pasting it is the only way to score the overview sections, and it is asked for (not required)
-// only when the link alone cannot be read.
+// rate and consultation offer. A configured browser worker also retrieves the overview.
+// Without a worker, the legacy public reader allows an optional pasted overview.
 //
 // Three kinds of points, kept deliberately separate:
 //   1. TRACK RECORD (25) and OFFER (10) are computed here in code from the public header. Same
 //      input, same points, every time. No AI.
 //   2. TITLE (20) is judged by Claude, with its length and structure measured in code first.
-//   3. OVERVIEW (45, five sections) is judged by Claude only when the overview was supplied.
+//   3. OVERVIEW (45, five sections) is judged by Claude when retrieved or supplied.
 // Anything we could not read is "not checked" and left out of the total, never guessed: the score is
 // the points earned out of the points we could assess, scaled to 100, and the page says how many of
 // the 100 points that was.

@@ -14,11 +14,9 @@ import {
 // optionally their email and overview; we save them as a lead, read the public header of the
 // profile, score it (lib/profile-score.ts) and return the score on the same page.
 //
-// Reading the profile: one plain, honestly identified request per attempt to the public profile
-// URL, retried with a pause when Upwork is slow or refuses. No proxies, no disguised browser, no
-// login, no private endpoints. Upwork's automation policy forbids scraping and Improvexus's own
-// agency work runs on Upwork accounts, so when Upwork says no, we ask the visitor for the overview
-// instead of trying to get around it.
+// When UPWORK_BROWSER_URL is configured, capture uses the dedicated signed-in browser worker.
+// Failed or incomplete captures stop here without asking the visitor to copy profile text.
+// The legacy public reader remains available when no worker is configured.
 //
 // Every request costs a model call, so it is rate limited per browser, per network address and per
 // WhatsApp number, and the limiter FAILS CLOSED: if it can't be checked, nothing is scored. (The
@@ -37,7 +35,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /** Up to three polite attempts, a few seconds apart. The visitor sees a progress list meanwhile. */
 async function readPublicProfile(url: string): Promise<PublicSnapshotResult> {
-  const pauses = [0, 3000, 6000];
+  const pauses = process.env.UPWORK_BROWSER_URL ? [0] : [0, 3000, 6000];
   let last: PublicSnapshotResult = { ok: false, outcome: "unavailable", message: "" };
   for (const pause of pauses) {
     if (pause) await sleep(pause);
@@ -117,7 +115,13 @@ export async function POST(request: Request) {
   if (fetched.ok) snapshot = fetched.snapshot;
   else console.info("Profile score: public profile not readable", fetched.outcome);
 
-  if (nothingToScore(snapshot, req.overview)) {
+  if (!fetched.ok && process.env.UPWORK_BROWSER_URL) {
+    await giveBack();
+    return json({ code: "PROFILE_READER_UNAVAILABLE", error: fetched.message }, 503);
+  }
+  const overview = fetched.ok && fetched.overview ? fetched.overview : req.overview;
+
+  if (nothingToScore(snapshot, overview)) {
     await giveBack();
     await db.update(leads).set({ goals: "Free profile score: Upwork profile could not be read and no overview was given." })
       .where(eq(leads.id, req.submissionId)).catch(() => {});
@@ -130,11 +134,11 @@ export async function POST(request: Request) {
 
   // 4. Claude judges the title and, when supplied, the overview. With neither (only stats were
   //    readable) the score is built from the stats alone and no model call is made.
-  const om = req.overview ? measureOverview(req.overview) : null;
+  const om = overview ? measureOverview(overview) : null;
   const tm = snapshot?.title ? measureTitle(snapshot.title) : null;
   let ai: AiScores | null = null;
   if (tm || om) {
-    const prompt = buildScoringPrompt(snapshot?.title ?? null, req.overview, tm, om, snapshot);
+    const prompt = buildScoringPrompt(snapshot?.title ?? null, overview, tm, om, snapshot);
     try {
       for (let attempt = 0; attempt < 2 && !ai; attempt++) {
         const text = await callScorer(attempt === 0 ? prompt : `${prompt}\n\nYour previous answer was not the JSON object described. Return only that JSON object.`);
