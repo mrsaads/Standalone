@@ -116,3 +116,10 @@
 @media (prefers-reduced-motion: reduce) {
   .ix-ps-ring, .ix-ps-bar i, .ix-ps-sections li { animation: none !important; }
 }
+
+/* "Connect Upwork" (official API sign-in), shown only when an Upwork API key is configured. */
+.ix-ps-notice { margin: 4px 0 0; padding: 10px 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 10px; font-size: 13.5px; line-height: 1.5; color: var(--ix-muted, rgba(255,255,255,.72)); background: rgba(255,255,255,.04); }
+.ix-ps-connect { display: grid; gap: 10px; margin-top: 8px; }
+.ix-ps-connect-note { margin: 0; font-size: 13px; line-height: 1.5; color: var(--ix-muted, rgba(255,255,255,.62)); }
+.ix-ps-or { margin: 2px 0 0; text-align: center; font-size: 12.5px; color: var(--ix-muted, rgba(255,255,255,.5)); display: flex; align-items: center; gap: 10px; }
+.ix-ps-or::before, .ix-ps-or::after { content: ""; flex: 1; height: 1px; background: rgba(255,255,255,.12); }

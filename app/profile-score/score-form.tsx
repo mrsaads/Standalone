@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, CircleAlert, CircleCheck, CircleDashed, FileSearch, LoaderCircle, Lock, MessageCircle, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronDown, Link2, CircleAlert, CircleCheck, CircleDashed, FileSearch, LoaderCircle, Lock, MessageCircle, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -23,7 +23,19 @@ function looksLikeProfileLink(value: string) {
   return /^(https?:\/\/)?(www\.)?upwork\.com\/(freelancers|fl)\/[^/\s?#]+/i.test(value.trim());
 }
 
-export function ScoreForm({ signedIn, automaticImport = false }: { signedIn: boolean; automaticImport?: boolean }) {
+// What Upwork's sign-in page can send the visitor back with (see app/api/upwork/callback/route.ts).
+const UPWORK_NOTICES: Record<string, string> = {
+  off: "Connecting Upwork isn't switched on yet. Paste your profile link below instead.",
+  denied: "Upwork sign-in was cancelled, so nothing was read. You can try again or paste your profile link below.",
+  invalid: "That Upwork sign-in couldn't be confirmed. Please try connecting again.",
+  busy: "Too many Upwork sign-ins from this network just now. Please try again in a few minutes.",
+  scope: "Upwork didn't allow us to read your profile with that sign-in. Paste your profile link below instead.",
+  failed: "We couldn't read your profile from Upwork just now. No score was generated. Please try again in a few minutes.",
+};
+const PENDING_KEY = "ix_ps_pending";
+type Pending = { waCountry: string; waNumber: string; email: string; consent: boolean };
+
+export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = false }: { signedIn: boolean; automaticImport?: boolean; upworkConnect?: boolean }) {
   const [profileUrl, setProfileUrl] = useState("");
   const [waCountry, setWaCountry] = useState("");
   const [waNumber, setWaNumber] = useState("");
@@ -38,6 +50,8 @@ export function ScoreForm({ signedIn, automaticImport = false }: { signedIn: boo
   const [error, setError] = useState("");
   const [fields, setFields] = useState<ScoreFieldErrors>({});
   const [result, setResult] = useState<ProfileScoreResult | null>(null);
+  const [connectedReady, setConnectedReady] = useState(false); // Upwork approved access; the profile is waiting on the server
+  const [notice, setNotice] = useState("");
   const resultRef = useRef<HTMLDivElement>(null);
   const overviewRef = useRef<HTMLTextAreaElement>(null);
 
@@ -45,6 +59,24 @@ export function ScoreForm({ signedIn, automaticImport = false }: { signedIn: boo
     setMounted(true);
     const guess = guessCountry();
     if (guess) setWaCountry(c => c || guess);
+    // Back from Upwork's sign-in page. The details typed before leaving were parked in this tab's
+    // session storage (never sent anywhere); if they are all still there the score starts by itself.
+    const params = new URLSearchParams(window.location.search);
+    const outcome = params.get("upwork");
+    const connected = params.get("connected") === "1";
+    if (!outcome && !connected) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (outcome) { setNotice(UPWORK_NOTICES[outcome] ?? UPWORK_NOTICES.failed); return; }
+    setConnectedReady(true);
+    let saved: Pending | null = null;
+    try { saved = JSON.parse(window.sessionStorage.getItem(PENDING_KEY) || "null") as Pending | null; window.sessionStorage.removeItem(PENDING_KEY); } catch { /* storage blocked: the visitor re-enters the details */ }
+    if (saved && saved.waCountry && saved.waNumber && saved.consent === true) {
+      setWaCountry(saved.waCountry); setWaNumber(saved.waNumber); setEmail(saved.email || ""); setConsent(true);
+      void runScore({ connected: true, profileUrl: "", overview: "", email: saved.email || "", waCountry: saved.waCountry, waNumber: saved.waNumber, consent: true });
+    } else {
+      setNotice("Upwork is connected. Add your WhatsApp number and tick the box below, then press the button to see your score.");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -71,38 +103,54 @@ export function ScoreForm({ signedIn, automaticImport = false }: { signedIn: boo
   // The button only switches on once everything the server will ask for is present. What is still
   // missing is spelled out under it, so a disabled button never leaves anyone guessing.
   const missing: string[] = [];
-  if (!looksLikeProfileLink(profileUrl)) missing.push("your Upwork profile link");
+  if (!connectedReady && !looksLikeProfileLink(profileUrl)) missing.push("your Upwork profile link");
   if (!waCountry || waNumber.replace(/\D/g, "").length < 6) missing.push("your WhatsApp number");
   if (!consent) missing.push("your agreement below");
   const emailOk = !email.trim() || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
   const overviewOk = overviewLength === 0 || (overviewLength >= OVERVIEW_MIN && overviewLength <= OVERVIEW_MAX);
   const ready = missing.length === 0 && emailOk && overviewOk;
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    if (!ready || busy) return;
-    setBusy(true); setError(""); setFields({});
+  type Payload = { connected: boolean; profileUrl: string; overview: string; email: string; waCountry: string; waNumber: string; consent: boolean };
+  async function runScore(payload: Payload) {
+    setBusy(true); setError(""); setNotice(""); setFields({});
     try {
       const response = await fetch("/api/profile-score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          submissionId: crypto.randomUUID(), profileUrl, overview, email,
-          whatsappCountry: waCountry, whatsappNumber: waNumber, consent, website,
+          submissionId: crypto.randomUUID(), profileUrl: payload.profileUrl, overview: payload.overview, email: payload.email,
+          whatsappCountry: payload.waCountry, whatsappNumber: payload.waNumber, consent: payload.consent, website, connected: payload.connected,
         }),
       });
       const body = await response.json() as { result?: ProfileScoreResult; error?: string; code?: string; fields?: ScoreFieldErrors };
       if (!response.ok || !body.result) {
         if (body.fields && Object.keys(body.fields).length) setFields(body.fields);
-        if (!automaticImport && body.code === "NEEDS_OVERVIEW") openOverview();
+        if (body.code === "CONNECTION_EXPIRED") setConnectedReady(false);
+        if (!automaticImport && !payload.connected && body.code === "NEEDS_OVERVIEW") openOverview();
         throw new Error(body.error || "We couldn't score your profile right now. Please try again.");
       }
+      setConnectedReady(false);
       setResult(body.result);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "We couldn't score your profile right now. Please try again.");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function submit(e: FormEvent) {
+    e.preventDefault();
+    if (!ready || busy) return;
+    await runScore({ connected: connectedReady, profileUrl, overview, email, waCountry, waNumber, consent });
+  }
+
+  // Leaves for Upwork's own sign-in page. The contact details are parked in this tab's session
+  // storage so the score can start by itself when Upwork sends the visitor back.
+  const contactReady = Boolean(waCountry) && waNumber.replace(/\D/g, "").length >= 6 && consent && emailOk;
+  function connectUpwork() {
+    if (!contactReady || busy) return;
+    try { window.sessionStorage.setItem(PENDING_KEY, JSON.stringify({ waCountry, waNumber, email, consent } satisfies Pending)); } catch { /* the visitor re-enters them on return */ }
+    window.location.assign("/api/upwork/connect");
   }
 
   const fieldError = (key: ScoreFieldKey) => fields[key] ? <p className="ix-l-field-error" role="alert" id={`ps-${key}-error`}>{fields[key]}</p> : null;
@@ -170,10 +218,20 @@ export function ScoreForm({ signedIn, automaticImport = false }: { signedIn: boo
         </label>
         {fieldError("consent")}
 
+        {notice && <p className="ix-ps-notice" role="status">{notice}</p>}
         {error && <p className="ix-l-error" role="alert"><CircleAlert size={15} className="ix-ps-inline-icon" />{error}</p>}
 
+        {upworkConnect && !connectedReady && (
+          <div className="ix-ps-connect">
+            <button type="button" className="ix-l-btn-solid ix-l-submit ix-ps-submit" disabled={!contactReady || busy} onClick={connectUpwork}>
+              <Link2 size={16} /> Connect Upwork to score from your real profile
+            </button>
+            <p className="ix-ps-connect-note">You sign in on Upwork&apos;s own page and approve read access to your own profile, so there is nothing to paste. We never see your Upwork password. {contactReady ? "" : "Add your WhatsApp number and tick the box first."}</p>
+            <p className="ix-ps-or" aria-hidden="true"><span>or paste your link above and score without connecting</span></p>
+          </div>
+        )}
         <button type="submit" className="ix-l-btn-solid ix-l-submit ix-ps-submit" disabled={!ready || busy}>
-          {busy ? <><LoaderCircle size={16} className="ix-ps-spin" /> Scoring your profile…</> : <>Score my profile <ArrowRight size={15} /></>}
+          {busy ? <><LoaderCircle size={16} className="ix-ps-spin" /> Scoring your profile…</> : <>{connectedReady ? "Score my connected profile" : "Score my profile"} <ArrowRight size={15} /></>}
         </button>
         {!busy && missing.length > 0 && <p className="ix-ps-missing">To switch this on, add {joinList(missing)}.</p>}
         {busy && (

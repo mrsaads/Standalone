@@ -25,6 +25,11 @@ services:
       # Both services need the same private token.
       - key: UPWORK_BROWSER_TOKEN
         sync: false
+      # Upwork official API ("Connect Upwork", docs/upwork-api.md). Add only after Upwork approves a key.
+      - key: UPWORK_API_CLIENT_ID
+        sync: false
+      - key: UPWORK_API_CLIENT_SECRET
+        sync: false
       # Supabase (Auth + Postgres)
       - key: SUPABASE_URL
         sync: false

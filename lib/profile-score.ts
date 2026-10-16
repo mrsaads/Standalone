@@ -53,13 +53,15 @@ const requestShape = z.object({
   whatsappNumber: z.string().max(40),
   consent: z.boolean(),
   website: z.string().max(200), // honeypot, must stay empty
+  // True after "Connect Upwork": the profile comes from Upwork's API (see lib/upwork-connected.ts), so no link is needed.
+  connected: z.boolean().optional().default(false),
 }).strict();
 
 export type ScoreFieldKey = "profileUrl" | "overview" | "email" | "whatsapp" | "consent";
 export type ScoreFieldErrors = Partial<Record<ScoreFieldKey, string>>;
 export type ValidScoreRequest = {
   submissionId: string; profileUrl: string; overview: string; email: string;
-  whatsapp: string; whatsappE164: string; country: string; honeypot: boolean;
+  whatsapp: string; whatsappE164: string; country: string; honeypot: boolean; connected: boolean;
 };
 
 export function validateScoreRequest(input: unknown): { ok: true; value: ValidScoreRequest } | { ok: false; fields: ScoreFieldErrors; error: string } {
@@ -68,9 +70,9 @@ export function validateScoreRequest(input: unknown): { ok: true; value: ValidSc
   const d = parsed.data;
   const fields: ScoreFieldErrors = {};
 
-  const link = normalizeUpworkLink(d.profileUrl);
+  const link = d.connected ? { ok: true as const, value: "" } : normalizeUpworkLink(d.profileUrl);
   if (!link.ok) fields.profileUrl = link.message;
-  else if (!referenceValid(link.value)) fields.profileUrl = "Use the link to a freelancer profile. It should look like https://www.upwork.com/freelancers/~01…";
+  else if (!d.connected && !referenceValid(link.value)) fields.profileUrl = "Use the link to a freelancer profile. It should look like https://www.upwork.com/freelancers/~01…";
 
   // Optional. Empty is fine. Something too short to judge is not.
   const overview = d.overview.replace(/\r\n/g, "\n").trim();
@@ -92,7 +94,7 @@ export function validateScoreRequest(input: unknown): { ok: true; value: ValidSc
     ok: true,
     value: {
       submissionId: d.submissionId, profileUrl: link.value, overview, email,
-      whatsapp: whatsapp.value, whatsappE164: whatsapp.e164, country: d.whatsappCountry.toUpperCase(), honeypot: d.website.length > 0,
+      whatsapp: whatsapp.value, whatsappE164: whatsapp.e164, country: d.whatsappCountry.toUpperCase(), honeypot: d.website.length > 0, connected: d.connected,
     },
   };
 }

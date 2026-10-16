@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
+import { upworkApiEnabled } from "@/lib/upwork-api";
 import { breadcrumbSchema } from "@/lib/marketing/schema";
 import { OG_IMAGES, SITE_NAME } from "@/lib/marketing/site";
 import { SiteNav } from "@/app/marketing/site-nav";
@@ -43,7 +44,7 @@ export default async function ProfileScorePage() {
           <p className="ix-m-lede">Paste your Upwork profile link and your WhatsApp number. We read your public profile, check your title, track record, rate and offer against the pattern top Upwork profiles follow, then show your score and the three changes that would raise it most.</p>
         </header>
         <section className="ix-ps-section" aria-label="Score your profile">
-          <ScoreForm signedIn={Boolean(user)} automaticImport={Boolean(process.env.UPWORK_BROWSER_URL)} />
+          <ScoreForm signedIn={Boolean(user)} automaticImport={Boolean(process.env.UPWORK_BROWSER_URL)} upworkConnect={upworkApiEnabled()} />
         </section>
       </main>
       <SiteFooter />

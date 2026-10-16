@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { leads } from "@/db/schema";
 import { isTrustedOrigin } from "@/lib/http";
+import { CONNECTION_COOKIE, discardEvidence, peekEvidence } from "@/lib/upwork-connected";
 import { fetchPublicProfileSnapshot, type PublicProfileSnapshot, type PublicSnapshotResult } from "@/lib/upwork-fetch";
 import { consume, refund, requestIdentity, type Bucket } from "@/lib/security/email-throttle";
 import { privacyHash } from "@/lib/security/browser-id";
@@ -87,6 +88,19 @@ export async function POST(request: Request) {
   }
   const giveBack = () => refund(bucketList).catch(() => {});
 
+  // 1b. After "Connect Upwork" the profile was already read through Upwork's API and is waiting in a
+  //     short-lived row that only this browser's cookie can name. No link is read, nothing is scraped.
+  const heldId = req.connected ? ((request.headers.get("cookie") || "").split(/;\s*/).find(p => p.startsWith(`${CONNECTION_COOKIE}=`))?.slice(CONNECTION_COOKIE.length + 1) ?? "") : "";
+  let held: Awaited<ReturnType<typeof peekEvidence>> = null;
+  if (req.connected) {
+    held = heldId ? await peekEvidence(heldId).catch(() => null) : null;
+    if (!held) {
+      await giveBack();
+      return json({ code: "CONNECTION_EXPIRED", error: "Your Upwork sign-in has expired. Please connect Upwork again." }, 409);
+    }
+    req.profileUrl = held.profileUrl;
+  }
+
   // 2. The lead is saved before any scoring, so a contact is never lost to an Upwork or AI hiccup.
   //    The submission id makes a retried request reuse the same row.
   const db = getDb();
@@ -110,10 +124,12 @@ export async function POST(request: Request) {
   }
 
   // 3. Public header of the profile. A failure is not fatal when an overview was supplied.
-  let snapshot: PublicProfileSnapshot | null = null;
-  const fetched = await readPublicProfile(req.profileUrl);
-  if (fetched.ok) snapshot = fetched.snapshot;
-  else console.info("Profile score: public profile not readable", fetched.outcome);
+  let snapshot: PublicProfileSnapshot | null = held ? held.snapshot : null;
+  const fetched: PublicSnapshotResult = held
+    ? { ok: true, snapshot: held.snapshot, overview: held.overview }
+    : await readPublicProfile(req.profileUrl);
+  if (!held && fetched.ok) snapshot = fetched.snapshot;
+  else if (!fetched.ok) console.info("Profile score: public profile not readable", fetched.outcome);
 
   if (!fetched.ok && process.env.UPWORK_BROWSER_URL) {
     await giveBack();
@@ -123,6 +139,7 @@ export async function POST(request: Request) {
 
   if (nothingToScore(snapshot, overview)) {
     await giveBack();
+    if (held) return json({ code: "CONNECTED_EMPTY", error: "Upwork connected, but it returned no title or overview to score. Please try again, or paste your overview instead." }, 422);
     await db.update(leads).set({ goals: "Free profile score: Upwork profile could not be read and no overview was given." })
       .where(eq(leads.id, req.submissionId)).catch(() => {});
     return json({
@@ -165,5 +182,8 @@ export async function POST(request: Request) {
     .where(eq(leads.id, req.submissionId))
     .catch(error => console.error("Profile score: lead summary update failed", error instanceof Error ? error.name : "UnknownError"));
 
-  return json({ result });
+  // The held profile has done its job; it is removed and the browser's pointer to it expires.
+  if (held) await discardEvidence(heldId).catch(() => {});
+  const clearHold: Record<string, string> = held ? { "Set-Cookie": `${CONNECTION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}` } : {};
+  return json({ result }, 200, clearHold);
 }

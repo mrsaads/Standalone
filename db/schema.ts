@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, date, index, integer, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, date, index, integer, jsonb, pgTable, real, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 // Every table below is reached ONLY through this app's own server, over the direct Postgres
 // connection (SUPABASE_DB_URL) — never through Supabase's PostgREST/anon-key API (confirmed: no
@@ -623,3 +623,16 @@ export const authEmailThrottle = pgTable("auth_email_throttle", {
   lockedUntil: timestamp("locked_until", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => [index("idx_auth_email_throttle_updated").on(table.updatedAt)]).enableRLS();
+
+// A customer's own Upwork profile, read through Upwork's official API after THEY approved access on
+// Upwork's own page ("Connect Upwork", lib/upwork-api.ts). It exists for minutes: the OAuth callback
+// writes one row, the score request that follows claims it (deleting it in the same statement), and
+// anything unclaimed is swept after `expires_at`. The Upwork access token is never stored; only the
+// profile text the score is built from. Rows are unreadable without the browser cookie that holds
+// the row id, and RLS is on with no policies, so only the server (service role) can touch them.
+export const upworkConnections = pgTable("upwork_connections", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  payload: jsonb("payload").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (table) => [index("idx_upwork_connections_expires").on(table.expiresAt)]).enableRLS();
