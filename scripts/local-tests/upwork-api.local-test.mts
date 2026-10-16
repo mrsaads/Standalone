@@ -11,9 +11,9 @@ import { getDb } from "../../db";
 import { upworkConnections } from "../../db/schema";
 import { buildAuthorizeUrl, exchangeCode, graphql, sameSecret, upworkApiConfig, UpworkApiError } from "../../lib/upwork-api";
 import {
-  claimEvidence, discardEvidence, evidenceFromProfile, evidenceText, holdEvidence, peekEvidence, profileKeyFrom, readOwnProfile,
+  claimEvidence, discardEvidence, evidenceFromProfile, evidenceText, holdEvidence, peekEvidence, profileKeyFrom, readOwnProfile, takeEvidence, restoreEvidence,
 } from "../../lib/upwork-connected";
-import { validateScoreRequest } from "../../lib/profile-score";
+import { assembleResult, parseAiScores, validateScoreRequest } from "../../lib/profile-score";
 
 let passed = 0;
 const test = async (name: string, fn: () => void | Promise<void>) => { await fn(); passed++; console.log(`ok - ${name}`); };
@@ -43,6 +43,14 @@ await test("the sign-in address carries client id, callback, code flow and state
   assert.equal(u.searchParams.get("redirect_uri"), cfg.redirectUri); assert.equal(u.searchParams.get("state"), "st4te");
 });
 await test("secret comparison is exact", () => { assert.ok(sameSecret("abc", "abc")); assert.ok(!sameSecret("abc", "abd")); assert.ok(!sameSecret("abc", "")); });
+
+await test("callback URLs must be valid and feature detection needs a real app origin", () => {
+  for (const address of ["https://", "https://user:password@app.example/api/upwork/callback", "https://app.example/other", "https://app.example/api/upwork/callback?x=1", "https://app.example/api/upwork/callback#fragment"]) {
+    assert.equal(upworkApiConfig({ ...ENV, UPWORK_API_REDIRECT_URI: address }), null);
+  }
+  assert.equal(upworkApiConfig({ ...ENV, NEXT_PUBLIC_SITE_URL: undefined, UPWORK_API_REDIRECT_URI: undefined }), null);
+  assert.equal(upworkApiConfig({ ...ENV, NEXT_PUBLIC_SITE_URL: undefined, RENDER_EXTERNAL_URL: "https://app.onrender.com" })?.redirectUri, "https://app.onrender.com/api/upwork/callback");
+});
 
 // ---- token exchange ------------------------------------------------------------------------------
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -127,11 +135,27 @@ await test("profile key is extracted only from a real key", () => {
   assert.equal(profileKeyFrom(`https://www.upwork.com/freelancers/${KEY}`), KEY);
   assert.equal(profileKeyFrom("https://www.upwork.com/freelancers/sara-khan"), null);
   assert.equal(profileKeyFrom(null), null);
+  assert.equal(profileKeyFrom(`https://evil.example/freelancers/${KEY}`), null);
+  assert.equal(profileKeyFrom(`https://www.upwork.com/freelancers/${KEY}/other`), null);
+  assert.equal(profileKeyFrom(`junk ${KEY}`), null);
 });
 await test("text for the full audit labels what is missing so the audit can leave it unverified", () => {
   const e = evidenceFromProfile(PROFILE, `https://www.upwork.com/freelancers/${KEY}`);
   const t = evidenceText(e);
   assert.match(t, /Title: Shopify Developer/); assert.match(t, /Skills: Shopify, Liquid/); assert.match(t, /Not read from Upwork .*Job Success Score/);
+});
+
+await test("metrics absent from API scopes are unassessed, not scored as zero", () => {
+  const e = evidenceFromProfile(PROFILE, `https://www.upwork.com/freelancers/${KEY}`);
+  const ai = parseAiScores(JSON.stringify(Object.fromEntries(["title", "hook", "flow", "proof", "keywords", "cta"].map(id => [id, { points: 1, note: "Evidence" }]))));
+  assert.ok(ai);
+  const result = assembleResult(e.snapshot, ai, true);
+  assert.equal(result.assessedPoints, 65);
+  assert.equal(result.track, null);
+  assert.equal(result.offer, null);
+  assert.equal(result.sections.find(section => section.id === "track")?.checked, false);
+  assert.equal(result.sections.find(section => section.id === "offer")?.checked, false);
+  assert.ok(result.notChecked.includes("Rate and offer"));
 });
 
 // ---- the holding row -----------------------------------------------------------------------------
@@ -164,6 +188,20 @@ await test("garbage ids and tampered payloads are refused", async () => {
   await discardEvidence(id);
 });
 
+await test("failed scoring restores the same claim once without extending expiry", async () => {
+  const id = await holdEvidence(evidence);
+  const claim = await takeEvidence(id);
+  assert.ok(claim);
+  assert.equal(await peekEvidence(id), null);
+  await restoreEvidence(claim);
+  await restoreEvidence(claim);
+  const [row] = await getDb().select().from(upworkConnections).where(eq(upworkConnections.id, id));
+  assert.equal(row.expiresAt.getTime(), claim.expiresAt.getTime());
+  assert.equal((await takeEvidence(id))?.evidence.snapshot.name, "Sara Khan");
+  await restoreEvidence({ ...claim, expiresAt: new Date(Date.now() - 1000) });
+  assert.equal(await peekEvidence(id), null);
+});
+
 // ---- request validation --------------------------------------------------------------------------
 await test("a connected request needs no link; an ordinary request still does", () => {
   const base = { submissionId: randomUUID(), overview: "", email: "", whatsappCountry: "PK", whatsappNumber: "300 1234567", consent: true, website: "" };
@@ -177,4 +215,4 @@ await test("a connected request needs no link; an ordinary request still does", 
 });
 
 console.log(`\n${passed} passed, 0 failed`);
-process.exit(0);
+await getDb().$client.end();

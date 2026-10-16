@@ -31,11 +31,12 @@ export async function GET(request: Request) {
   const cfg = upworkApiConfig(process.env, origin);
   if (!cfg) return back("off");
   const url = new URL(request.url);
-  if (url.searchParams.get("error")) return back("denied");
   const code = url.searchParams.get("code");
   const state = url.searchParams.get("state");
   const expected = readCookie(request, STATE_COOKIE);
-  if (!code || !state || !expected || !sameSecret(state, expected)) return back("invalid");
+  if (!state || !expected || !/^[0-9a-f]{48}$/.test(state) || !sameSecret(state, expected)) return back("invalid");
+  if (url.searchParams.get("error")) return back("denied");
+  if (!code || code.length > 4096) return back("invalid");
 
   // Every successful sign-in spends our Upwork API allowance, so this is limited per network address.
   try {

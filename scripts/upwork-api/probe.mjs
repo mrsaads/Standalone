@@ -23,6 +23,19 @@ const authorizeUrl = process.env.UPWORK_API_AUTHORIZE_URL || 'https://www.upwork
 const tokenUrl = process.env.UPWORK_API_TOKEN_URL || 'https://www.upwork.com/api/v3/oauth2/token';
 const graphqlUrl = process.env.UPWORK_API_GRAPHQL_URL || 'https://api.upwork.com/graphql';
 
+// Refuse endpoint overrides that could forward account credentials outside Upwork.
+for (const value of [authorizeUrl, tokenUrl, graphqlUrl]) {
+  const parsed = new URL(value);
+  if (parsed.protocol !== 'https:' || parsed.port || parsed.username || parsed.password || parsed.search || parsed.hash ||
+      !(parsed.hostname === 'upwork.com' || parsed.hostname.endsWith('.upwork.com'))) {
+    throw new Error('API endpoints must be plain HTTPS Upwork addresses.');
+  }
+}
+const callback = new URL(redirectUri);
+if (callback.protocol !== 'https:' || callback.username || callback.password || callback.search || callback.hash || callback.pathname !== '/api/upwork/callback') {
+  throw new Error('Use the registered HTTPS /api/upwork/callback address.');
+}
+
 const report = { when: new Date().toISOString(), hosts: { authorizeUrl, tokenUrl, graphqlUrl }, steps: [] };
 const note = (step, detail) => { report.steps.push({ step, ...detail }); console.log(`- ${step}: ${detail.ok === false ? 'FAILED' : 'ok'}${detail.note ? ` (${detail.note})` : ''}`); };
 
@@ -37,22 +50,43 @@ console.log('(it contains ?code=...) and paste it here. The page itself may show
 const rl = createInterface({ input: process.stdin, output: process.stdout });
 const pasted = (await rl.question('Pasted address: ')).trim(); rl.close();
 let code;
-try { const p = new URL(pasted); code = p.searchParams.get('code'); note('state echoed back', { ok: p.searchParams.get('state') === state, note: 'if FAILED, Upwork does not return `state`; the app then fails closed and needs a different CSRF approach' }); }
-catch { console.error('That was not a web address.'); process.exit(1); }
+try {
+  const p = new URL(pasted);
+  if (p.origin !== callback.origin || p.pathname !== callback.pathname || p.searchParams.get('state') !== state) {
+    throw new Error('callback mismatch');
+  }
+  code = p.searchParams.get('code');
+  note('state echoed back', { ok: true });
+} catch { console.error('Callback address or state did not match. No token exchange was attempted.'); process.exit(1); }
 if (!code) { console.error('No code= in that address.'); process.exit(1); }
 
+async function readJson(response) {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Empty API response');
+  const chunks = []; let bytes = 0;
+  while (true) {
+    const part = await reader.read();
+    if (part.done) break;
+    bytes += part.value.byteLength;
+    if (bytes > 1024 * 1024) { await reader.cancel(); throw new Error('API response too large'); }
+    chunks.push(part.value);
+  }
+  return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+}
+
 // 2. Trade the code for a token (kept in memory only).
-const tokenRes = await fetch(tokenUrl, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
+const tokenRes = await fetch(tokenUrl, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
   body: new URLSearchParams({ grant_type: 'authorization_code', client_id: clientId, client_secret: clientSecret, code, redirect_uri: redirectUri }) });
-const tokenBody = await tokenRes.json().catch(() => ({}));
-note('token exchange', { ok: tokenRes.ok && !!tokenBody.access_token, status: tokenRes.status, note: tokenRes.ok ? `fields: ${Object.keys(tokenBody).filter(k => !/token/i.test(k)).join(', ')}` : String(tokenBody.error || '') });
-if (!tokenBody.access_token) { await writeFile('upwork-probe-report.json', JSON.stringify(report, null, 2)); process.exit(2); }
+const tokenBody = await readJson(tokenRes).catch(() => ({})) || {};
+const validToken = tokenRes.ok && typeof tokenBody.access_token === 'string' && tokenBody.access_token.length >= 8 && tokenBody.access_token.length <= 4096;
+note('token exchange', { ok: validToken, status: tokenRes.status, note: tokenRes.ok ? `fields: ${Object.keys(tokenBody).filter(k => !/token/i.test(k)).join(', ')}` : 'provider rejected token exchange' });
+if (!validToken) { await writeFile('upwork-probe-report.json', JSON.stringify(report, null, 2), { mode: 0o600 }); process.exit(2); }
 const token = tokenBody.access_token;
 
 const gql = async (query, variables = {}) => {
-  const r = await fetch(graphqlUrl, { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ query, variables }) });
-  const body = await r.json().catch(() => ({}));
-  return { status: r.status, data: body.data ?? null, errors: (body.errors || []).map(e => String(e.message).slice(0, 200)) };
+  const r = await fetch(graphqlUrl, { method: 'POST', redirect: 'error', signal: AbortSignal.timeout(15000), headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ query, variables }) });
+  const body = await readJson(r).catch(() => ({})) || {};
+  return { status: r.status, data: body.data ?? null, errors: (Array.isArray(body.errors) ? body.errors : []).map(() => 'provider error (message omitted)') };
 };
 // Shape only: strings become their length, so the report never contains profile text.
 const shape = v => Array.isArray(v) ? [v.length, v.length ? shape(v[0]) : null] : v && typeof v === 'object' ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, shape(x)])) : typeof v === 'string' ? `<string:${v.length}>` : typeof v;
@@ -85,7 +119,7 @@ const fields = intro.data?.__type?.fields;
 note('introspection', { ok: !!fields, note: fields ? 'allowed' : 'not allowed; field names must come from Upwork\'s docs or support' });
 if (fields) {
   const walk = async (typeName, depth, seen = new Set()) => {
-    if (depth < 0 || seen.has(typeName)) return null; seen.add(typeName);
+    if (depth < 0 || seen.has(typeName) || !/^[_A-Za-z][_A-Za-z0-9]*$/.test(typeName)) return null; seen.add(typeName);
     const r = await gql(`{ __type(name: "${typeName}") { fields { name type { name kind ofType { name kind ofType { name kind } } } } } }`);
     const out = {};
     for (const f of r.data?.__type?.fields || []) {
@@ -101,5 +135,5 @@ if (fields) {
   note('profile type tree', { ok: !!report.profileTypeTree, note: rootType });
 }
 
-await writeFile('upwork-probe-report.json', JSON.stringify(report, null, 2));
+await writeFile('upwork-probe-report.json', JSON.stringify(report, null, 2), { mode: 0o600 });
 console.log('\nWrote upwork-probe-report.json (field names and types only, no profile text). Share it so the field list can be corrected.');

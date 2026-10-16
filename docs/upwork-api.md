@@ -1,6 +1,6 @@
 # Connect Upwork (official API)
 
-The supported way to get a customer's real Upwork profile into the score and audit with almost no
+The supported way to get a customer's real Upwork profile into the score with almost no
 effort from them: they click **Connect Upwork**, sign in on upwork.com, approve read access to their
 OWN profile, and Upwork sends them back. No link is pasted, nothing is scraped, no password or
 browser session is held. It is switched off until an Upwork API key exists
@@ -11,7 +11,10 @@ and is untouched by this feature.
 
 ## Status, in three columns
 
-**Verified (against Upwork's own pages, 2026-10-16)**
+**Documentation findings supplied with the implementation (2026-10-16)**
+
+These are documentation claims, not live API validation. Recheck current eligibility, permissions
+and endpoint/schema details with Upwork; the queries below have only been tested against mocks.
 
 - Upwork's Terms of Use (section 3.5) ban robots, spiders and scrapers without written permission,
   and accessing Upwork through anything other than its interface. The API terms also ban
@@ -38,8 +41,10 @@ and is untouched by this feature.
   Without it the app cannot show the profile is the customer's own, so it reads nothing.
 - Subfield names inside `skills`, `employmentRecords` and `projectList`. The richest selection is
   tried first; if Upwork rejects it the code falls back to documented fields only and lists what is
-  missing (`ConnectedEvidence.missing`). Job Success Score, hourly rate and hours are not exposed by
-  any documented profile selection, so the connected score treats them as "not checked", never guessed.
+  missing (`ConnectedEvidence.missing`). The current selections do not retrieve Job Success Score, hourly rate, hours or consultation.
+  Connected scoring therefore excludes the entire track-record and offer groups (35 points).
+  Title and overview contribute up to 65 assessed points, scaled to a score out of 100; the UI
+  explicitly lists the excluded groups as not checked.
 - That the "Freelancer Profile" scope allows a customer to read their own profile through these queries.
 
 **Needs your action**
@@ -52,7 +57,10 @@ and is untouched by this feature.
    `https://www.improvexus.com/api/upwork/callback`. Scope: Freelancer Profile (read) and, if offered
    separately, View UserDetails (read).
 4. When the key arrives, run the probe on your own computer (below) BEFORE adding the key to Render.
-5. Apply `drizzle/0011_upwork_connections.sql` to Supabase, then add the two env vars to Render and redeploy.
+5. Apply migration `0011_upwork_connections` to the existing development database using the
+   migration runner (it is registered in `drizzle/meta/_journal.json`), then add the two env vars
+   and the canonical app origin or explicit callback URL to Render and redeploy. The historic
+   migration chain assumes a pre-existing `leads` table; it is not a complete empty-database bootstrap.
 
 ## How a visit works
 
@@ -64,16 +72,19 @@ and is untouched by this feature.
    customer's profile text in `upwork_connections` for 15 minutes, drops the token, and sets a
    cookie holding the row's random id. It is rate limited per network address.
 4. The page sees `?connected=1` and posts to `/api/profile-score` with `connected: true`. The server
-   reads the held row named by the cookie, scores that evidence, deletes the row, clears the cookie.
-   If scoring fails the row stays so a retry needs no new sign-in; if the row has expired the visitor
+   atomically claims and removes the held row named by the cookie before a model call.
+   A simultaneous request cannot reuse it. After scoring, the cookie is cleared.
+   If scoring fails the same row is restored with its original expiry, so a retry needs no new sign-in; if the row has expired the visitor
    is asked to connect again. No allowance is spent on failures.
 
 ## What is stored
 
-Only the profile text and facts read (title, overview, skills, work history, portfolio titles, a few
-counts) for at most 15 minutes, in a table closed to everything but the server. Never the access
-token, refresh token, Upwork password or cookies. The Upwork API terms require deleting Upwork data
-on a user's request: deleting the row (or waiting 15 minutes) does that.
+The holding table contains profile text and facts, never the access token, refresh token, Upwork
+password or browser session. Rows become unreadable after 15 minutes and expired rows are swept
+when another connection is held. This is read expiry, not guaranteed physical deletion at the
+15-minute mark. Successful scoring consumes the held row; a failed score restores it without
+extending the original expiry. Lead names and score summaries are stored separately by the existing
+score flow. Deleting the holding row alone does not delete these derived records.
 
 ## Probe: find out what Upwork really returns
 
@@ -89,17 +100,18 @@ It prints an Upwork sign-in address, you approve as yourself, paste back the add
 you to, and it writes `upwork-probe-report.json`: whether `state` came back, whether each identity
 and profile selection was accepted, and (if Upwork allows introspection) the real field names under
 the profile type. Strings in the report are replaced by their length, so it holds no profile text and
-is safe to share. Then `IDENTITY_QUERIES` and `PROFILE_SELECTIONS` in `lib/upwork-connected.ts` are
+omits provider error text as well. Review the report before sharing it. Then `IDENTITY_QUERIES` and `PROFILE_SELECTIONS` in `lib/upwork-connected.ts` are
 corrected in one place.
 
 ## Tests
 
 ```sh
-npm run test:local:upwork-api   # 21 checks, mock Upwork, needs Postgres with migration 0011
-npm run test:local:upwork-e2e   # 13 checks: real app in dev mode + mock Upwork + stub AI, every failure path
+npm run test:local:upwork-api   # 24 checks, mock Upwork, needs Postgres with migration 0011
+npm run test:local:upwork-e2e   # 15 checks: real app in dev mode + mock Upwork + stub AI, every failure path
 ```
 
-Both run against a mock built from the assumptions above. They prove the app's side of the flow
+The end-to-end test also needs Playwright Chromium (or set `UPWORK_BROWSER_EXECUTABLE_PATH` to
+your system Chromium path). Both run against a mock built from the assumptions above. They prove the app's side of the flow
 (state check, no token stored, single-use row, ownership, fail-closed paths) and cannot prove what
 Upwork will return.
 

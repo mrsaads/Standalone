@@ -44,10 +44,17 @@ const profileQuery = (selection: string) => `query ($profileKey: String!) { tale
     ${selection}
   } }`;
 
-const KEY = /(~[0-9a-f]{8,})/i;
+const KEY = /^~[0-9a-f]{8,}$/i;
 /** The profile key inside a freelancer link or id: `https://www.upwork.com/freelancers/~01abc…` → `~01abc…` */
 export function profileKeyFrom(value: unknown): string | null {
-  return typeof value === "string" ? KEY.exec(value)?.[1] ?? null : null;
+  if (typeof value !== "string" || value.length > 500) return null;
+  if (KEY.test(value)) return value;
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:" || !["www.upwork.com", "upwork.com"].includes(url.hostname) || url.port || url.username || url.password) return null;
+    const match = /^\/(?:freelancers|fl)\/(~[0-9a-f]{8,})\/?$/i.exec(url.pathname);
+    return match?.[1] ?? null;
+  } catch { return null; }
 }
 
 export type ConnectedEvidence = {
@@ -68,6 +75,7 @@ const evidenceSchema = z.object({
     name: z.string().nullable(), title: z.string().nullable(), location: z.string().nullable(),
     jss: z.number().nullable(), badge: z.enum(["Top Rated Plus", "Top Rated", "Rising Talent", "Expert-Vetted"]).nullable(),
     rating: z.number().nullable(), reviews: z.number().nullable(), totalJobs: z.number().nullable(), totalHours: z.number().nullable(),
+    unavailableSections: z.array(z.enum(["track", "offer"])).optional(),
     hourlyRate: z.number().nullable(), consultation: z.object({ price: z.number(), minutes: z.number() }).nullable(),
   }),
   overview: z.string().max(5000),
@@ -136,6 +144,7 @@ export function evidenceFromProfile(profile: unknown, profileUrl: string, now = 
       jss: null, badge: badgeFrom(pick(aggregates, "topRatedStatus")), rating: null, reviews: null,
       totalJobs: totalJobs !== null && Number.isInteger(totalJobs) && totalJobs >= 0 ? totalJobs : null,
       totalHours: null, hourlyRate: null, consultation: null,
+      unavailableSections: ["track", "offer"],
     },
     sections: { skills, employment, projects }, missing, readAt: now.toISOString(),
   };
@@ -166,7 +175,7 @@ export async function readOwnProfile(cfg: UpworkApiConfig, token: string, doFetc
       const r = await graphql(cfg, token, profileQuery(selection), { profileKey: key }, doFetch);
       const profile = pick(r.data, "talentProfileByProfileKey");
       if (isObj(profile) && !r.errors.some(e => /permission|scope|not authori[sz]ed|forbidden/i.test(e.message))) {
-        const link = publicUrl && /^https:\/\/(www\.)?upwork\.com\/(freelancers|fl)\//i.test(publicUrl) ? publicUrl : `https://www.upwork.com/freelancers/${key}`;
+        const link = `https://www.upwork.com/freelancers/${key}`;
         const evidence = evidenceFromProfile(profile, link);
         if (!evidence.overview && !evidence.snapshot.title) return { ok: false, reason: "empty", message: "Upwork returned the profile without a title or overview." };
         return { ok: true, evidence, selection: label };
@@ -174,7 +183,7 @@ export async function readOwnProfile(cfg: UpworkApiConfig, token: string, doFetc
       lastErrors = r.errors.map(e => e.message).join(" | ").slice(0, 300);
       if (/permission|scope|not authori[sz]ed|forbidden/i.test(lastErrors)) return { ok: false, reason: "scope", message: "This sign-in does not allow reading the freelancer profile." };
     }
-    console.error("Upwork API: no profile selection was accepted", lastErrors);
+    console.error("Upwork API: no profile selection was accepted");
     return { ok: false, reason: "no_profile", message: "Upwork did not return your profile." };
   } catch (error) {
     if (error instanceof UpworkApiError) {
@@ -232,11 +241,27 @@ export async function discardEvidence(id: string): Promise<void> {
   await getDb().delete(upworkConnections).where(eq(upworkConnections.id, id));
 }
 
-/** Single use: reading it deletes it, in one statement, so two requests can never both get it. */
-export async function claimEvidence(id: string): Promise<ConnectedEvidence | null> {
+export type EvidenceClaim = { id: string; evidence: ConnectedEvidence; expiresAt: Date; createdAt: Date };
+
+/** Atomically remove the holding row before starting a billed model call. */
+export async function takeEvidence(id: string): Promise<EvidenceClaim | null> {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
   const [row] = await getDb().delete(upworkConnections)
     .where(and(eq(upworkConnections.id, id), gt(upworkConnections.expiresAt, new Date())))
-    .returning({ payload: upworkConnections.payload });
-  return parseHeld(row?.payload);
+    .returning();
+  const evidence = parseHeld(row?.payload);
+  return row && evidence ? { id: row.id, evidence, expiresAt: row.expiresAt, createdAt: row.createdAt } : null;
+}
+
+/** Restore a failed attempt without extending its original privacy/expiry window. */
+export async function restoreEvidence(claim: EvidenceClaim): Promise<void> {
+  if (claim.expiresAt.getTime() <= Date.now()) return;
+  await getDb().insert(upworkConnections).values({
+    id: claim.id, payload: claim.evidence, expiresAt: claim.expiresAt, createdAt: claim.createdAt,
+  }).onConflictDoNothing();
+}
+
+/** Single-use read for other callers. Failed scoring attempts use take/restore above. */
+export async function claimEvidence(id: string): Promise<ConnectedEvidence | null> {
+  return (await takeEvidence(id))?.evidence ?? null;
 }

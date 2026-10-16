@@ -64,6 +64,13 @@
       "when": 1790933000000,
       "tag": "0009_lead_whatsapp_country_page",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792108800000,
+      "tag": "0011_upwork_connections",
+      "breakpoints": true
     }
   ]
 }

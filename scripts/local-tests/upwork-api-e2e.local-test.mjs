@@ -2,11 +2,14 @@
 // AI, the real app in dev mode and a real Postgres. It clicks through exactly what a visitor's browser
 // does, one HTTP request at a time, including the failure paths. It proves the app's side of the flow;
 // it says nothing about what the real Upwork returns (run scripts/upwork-api/probe.mjs for that).
-// Needs: Postgres with drizzle/0010 or later applied (DATABASE_URL), `npm ci`. Run: npm run test:local:upwork-e2e
+// Needs: Postgres with drizzle/0011 applied (DATABASE_URL), `npm ci`. Run: npm run test:local:upwork-e2e
 import assert from 'node:assert/strict';
 import http from 'node:http';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import postgres from 'postgres';
+import { chromium } from 'playwright';
 
 const DB = process.env.DATABASE_URL;
 if (!DB) throw new Error('Set DATABASE_URL to a throwaway Postgres.');
@@ -50,9 +53,10 @@ const upwork = http.createServer((req, res) => {
 }).listen(UP, '127.0.0.1');
 
 // ---- stub AI ---------------------------------------------------------------------------------
-let aiCalls = 0; let aiPrompt = '';
+let aiCalls = 0; let aiPrompt = ''; let aiFailure = false;
 const ai = http.createServer((req, res) => {
   let body = ''; req.on('data', c => body += c); req.on('end', () => {
+    if (aiFailure) { res.writeHead(503); return res.end('{}'); }
     aiCalls++; aiPrompt = JSON.parse(body || '{}').messages?.[0]?.content || '';
     const answer = { title: { points: 6, note: 'Clear niche.' }, hook: { points: 6, note: 'Opens with the client problem.' }, flow: { points: 9, note: 'Readable.' },
       proof: { points: 4, note: 'One number.' }, keywords: { points: 7, note: 'Shopify repeated.' }, cta: { points: 3, note: 'Asks for the store link.' },
@@ -68,13 +72,15 @@ const env = { ...process.env, NODE_ENV: 'development', PORT: String(APP), SUPABA
   UPWORK_API_AUTHORIZE_URL: `http://127.0.0.1:${UP}/authorize`, UPWORK_API_TOKEN_URL: `http://127.0.0.1:${UP}/token`, UPWORK_API_GRAPHQL_URL: `http://127.0.0.1:${UP}/graphql`,
   UPWORK_API_REDIRECT_URI: `http://127.0.0.1:${APP}/api/upwork/callback`, APP_ORIGIN: `http://127.0.0.1:${APP}`, PROFILE_SCORE_IP_LIMIT: '200', PROFILE_SCORE_CONTACT_LIMIT: '200', PROFILE_SCORE_BROWSER_LIMIT: '200', UPWORK_CONNECT_IP_LIMIT: '500' };
 delete env.UPWORK_BROWSER_URL; delete env.SUPABASE_URL; delete env.SUPABASE_ANON_KEY;
-const server = spawn('npx', ['next', 'dev', '-p', String(APP)], { env, stdio: ['ignore', 'pipe', 'pipe'] });
+const generated = new Map(['next-env.d.ts', 'AGENTS.md', 'CLAUDE.md'].map(file => { try { return [file, readFileSync(file)]; } catch { return [file, null]; } }));
+const server = spawn(process.execPath, ['node_modules/next/dist/bin/next', 'dev', '--hostname', '127.0.0.1', '-p', String(APP)], { env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
 let log = ''; server.stdout.on('data', d => log += d); server.stderr.on('data', d => log += d);
-const stop = () => { server.kill('SIGTERM'); upwork.close(); ai.close(); };
+const stop = () => { try { process.kill(-server.pid, 'SIGTERM'); } catch {} upwork.close(); ai.close(); };
 process.on('exit', stop);
 
 const sql = postgres(DB, { max: 2 });
 const base = `http://127.0.0.1:${APP}`;
+try {
 for (let i = 0; i < 120; i++) { try { const r = await fetch(`${base}/robots.txt`); if (r.ok) break; } catch { /* starting */ } await new Promise(r => setTimeout(r, 1000)); if (i === 119) throw new Error('app did not start\n' + log.slice(-2000)); }
 
 // A tiny browser: keeps cookies, follows redirects by hand so each hop can be inspected.
@@ -96,6 +102,34 @@ const heldRows = async () => Number((await sql`select count(*)::int as n from up
 await test('the score page offers "Connect Upwork" when a key is configured', async () => {
   const html = await (await fetch(`${base}/profile-score`)).text();
   assert.match(html, /Connect Upwork to score from your real profile/);
+});
+
+await test('cancelled sign-in restores contact details and connected retries hide pasted-overview controls', async () => {
+  const browser = await chromium.launch({ executablePath: process.env.UPWORK_BROWSER_EXECUTABLE_PATH || undefined, args: ['--no-proxy-server'] });
+  try {
+    const context = await browser.newContext();
+    await context.addInitScript(() => window.sessionStorage.setItem('ix_ps_pending', JSON.stringify({
+      waCountry: 'PK', waNumber: '3001234567', email: 'retry@example.com', consent: true, savedAt: Date.now(),
+    })));
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+    await page.goto(`${base}/profile-score?upwork=denied`);
+    await page.waitForFunction(() => document.querySelector('#ps-whatsapp')?.value === '3001234567', {}, { timeout: 15000 }).catch(async () => {
+      console.error(log.slice(-2000));
+      throw new Error(`Contact restore failed: ${JSON.stringify({ errors, state: await page.evaluate(() => ({ search: location.search, value: document.querySelector('#ps-whatsapp')?.value, pending: sessionStorage.getItem('ix_ps_pending') })) })}`);
+    });
+    assert.equal(await page.locator('#ps-email').inputValue(), 'retry@example.com');
+    assert.equal(await page.locator('#ps-consent').getAttribute('aria-checked'), 'true');
+    assert.equal(await page.getByRole('button', { name: 'Connect Upwork to score from your real profile' }).isEnabled(), true);
+    await page.route('**/api/profile-score', route => route.fulfill({ status: 503, contentType: 'application/json', body: JSON.stringify({ error: 'Retry the connected profile' }) }));
+    await page.goto(`${base}/profile-score?connected=1`);
+    await page.getByRole('alert').filter({ hasText: 'Retry the connected profile' }).waitFor();
+    assert.equal(await page.getByRole('button', { name: /Add your overview for a fuller score/ }).count(), 0);
+    assert.equal(await page.getByRole('button', { name: 'Score my connected profile' }).isEnabled(), true);
+    await context.close();
+  } finally { await browser.close(); }
 });
 
 await test('connect sends the browser to Upwork with a state cookie, and the callback holds the profile', async () => {
@@ -121,6 +155,9 @@ await test('scoring with only the sign-in: no link, no pasted overview; the real
   assert.equal(r.status, 200, await r.clone().text());
   const body = await r.json();
   assert.equal(body.result.profile.name, 'Sara Khan');
+  assert.equal(body.result.assessedPoints, 65);
+  assert.equal(body.result.offer, null);
+  assert.equal(body.result.track, null);
   assert.equal(aiCalls, before + 1, 'one model call');
   assert.match(aiPrompt, /Slow Shopify stores lose sales every day/, 'the overview from Upwork was scored');
   assert.match(aiPrompt, /Shopify Developer \| Store Speed and Fixes/, 'the title from Upwork was scored');
@@ -183,14 +220,35 @@ await test('a sign-in that cannot show which profile is yours reads nothing', as
   assert.match(r.headers.get('location'), /upwork=failed/); assert.equal(await heldRows(), 0); mode = 'ok';
 });
 
+await test('simultaneous score requests consume one connection and make one AI call', async () => {
+  jar.clear(); await signIn();
+  const before = aiCalls;
+  const responses = await Promise.all([score(), score()]);
+  assert.deepEqual(responses.map(r => r.status).sort(), [200, 409]);
+  assert.equal(aiCalls, before + 1);
+  assert.equal(await heldRows(), 0);
+});
+
 await test('the AI failing after a good sign-in keeps the profile for a retry instead of making the customer sign in again', async () => {
   jar.clear(); await signIn();
   assert.equal(await heldRows(), 1);
-  ai.closeAllConnections(); ai.close(); await new Promise(r => setTimeout(r, 300));
+  aiFailure = true;
   const failed = await score();
   assert.ok(failed.status >= 500, `status ${failed.status}`);
   assert.equal(await heldRows(), 1, 'still held'); assert.ok(jar.get('ix_uw_conn'), 'pointer still there');
+  aiFailure = false;
+  assert.equal((await score()).status, 200);
+  assert.equal(await heldRows(), 0, 'restored evidence can be scored on retry');
 });
 
 console.log(`\n${passed} passed, 0 failed`);
-stop(); await sql.end(); process.exit(0);
+} finally {
+  stop();
+  if (server.exitCode === null) {
+    await Promise.race([once(server, 'exit'), new Promise(resolve => setTimeout(resolve, 5000))]);
+  }
+  await sql.end();
+  for (const [file, contents] of generated) {
+    if (contents === null) rmSync(file, { force: true }); else writeFileSync(file, contents);
+  }
+}

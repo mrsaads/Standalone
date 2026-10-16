@@ -1,4 +1,5 @@
-// Applies every SQL file under ./drizzle, in order, to SUPABASE_DB_URL (or DATABASE_URL).
+// Applies the forward SQL files registered in drizzle/meta/_journal.json, in order,
+// to SUPABASE_DB_URL (or DATABASE_URL). Unregistered SQL files are not run.
 // Run once per deploy target (locally against a dev Supabase project, then again against
 // production) via `npm run db:migrate`. Uses drizzle-orm's own postgres-js migrator so this
 // tracks applied migrations the same way `drizzle-kit generate` names them — no separate

@@ -27,3 +27,6 @@ Thumbs.db
 # Editor
 .vscode/
 .idea/
+
+# Local Upwork API probe output
+upwork-probe-report.json

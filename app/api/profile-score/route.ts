@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { leads } from "@/db/schema";
 import { isTrustedOrigin } from "@/lib/http";
-import { CONNECTION_COOKIE, discardEvidence, peekEvidence } from "@/lib/upwork-connected";
+import { CONNECTION_COOKIE, restoreEvidence, takeEvidence, type EvidenceClaim } from "@/lib/upwork-connected";
 import { fetchPublicProfileSnapshot, type PublicProfileSnapshot, type PublicSnapshotResult } from "@/lib/upwork-fetch";
 import { consume, refund, requestIdentity, type Bucket } from "@/lib/security/email-throttle";
 import { privacyHash } from "@/lib/security/browser-id";
@@ -86,14 +86,26 @@ export async function POST(request: Request) {
     console.error("Profile score: rate limiter unavailable, refusing to score", error instanceof Error ? error.name : "UnknownError");
     return json({ error: "Scoring is busy right now. Please try again in a minute." }, 503);
   }
-  const giveBack = () => refund(bucketList).catch(() => {});
+  let heldClaim: EvidenceClaim | null = null;
+  const giveBack = async () => {
+    await refund(bucketList).catch(() => {});
+    if (heldClaim) await restoreEvidence(heldClaim).catch(() => {
+      console.error("Profile score: connected profile could not be restored for retry");
+    });
+  };
 
   // 1b. After "Connect Upwork" the profile was already read through Upwork's API and is waiting in a
   //     short-lived row that only this browser's cookie can name. No link is read, nothing is scraped.
   const heldId = req.connected ? ((request.headers.get("cookie") || "").split(/;\s*/).find(p => p.startsWith(`${CONNECTION_COOKIE}=`))?.slice(CONNECTION_COOKIE.length + 1) ?? "") : "";
-  let held: Awaited<ReturnType<typeof peekEvidence>> = null;
+  let held: EvidenceClaim["evidence"] | null = null;
   if (req.connected) {
-    held = heldId ? await peekEvidence(heldId).catch(() => null) : null;
+    try {
+      heldClaim = heldId ? await takeEvidence(heldId) : null;
+      held = heldClaim?.evidence ?? null;
+    } catch {
+      await giveBack();
+      return json({ error: "Your connected profile could not be loaded. Please try again shortly." }, 503);
+    }
     if (!held) {
       await giveBack();
       return json({ code: "CONNECTION_EXPIRED", error: "Your Upwork sign-in has expired. Please connect Upwork again." }, 409);
@@ -183,7 +195,7 @@ export async function POST(request: Request) {
     .catch(error => console.error("Profile score: lead summary update failed", error instanceof Error ? error.name : "UnknownError"));
 
   // The held profile has done its job; it is removed and the browser's pointer to it expires.
-  if (held) await discardEvidence(heldId).catch(() => {});
+  // A connected profile was atomically consumed before scoring; no second deletion is needed.
   const clearHold: Record<string, string> = held ? { "Set-Cookie": `${CONNECTION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}` } : {};
   return json({ result }, 200, clearHold);
 }

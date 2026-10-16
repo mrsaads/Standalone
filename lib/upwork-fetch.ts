@@ -181,6 +181,8 @@ export function isBlockedText(text: string): boolean {
 // for the overview to be pasted. Every field is optional: a missing one is reported as missing,
 // never guessed.
 export type PublicProfileSnapshot = {
+  /** API scopes may omit whole groups; do not treat those omissions as low scores. */
+  unavailableSections?: Array<"track" | "offer">;
   name: string | null;
   title: string | null;
   location: string | null;

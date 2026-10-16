@@ -33,7 +33,7 @@ const UPWORK_NOTICES: Record<string, string> = {
   failed: "We couldn't read your profile from Upwork just now. No score was generated. Please try again in a few minutes.",
 };
 const PENDING_KEY = "ix_ps_pending";
-type Pending = { waCountry: string; waNumber: string; email: string; consent: boolean };
+type Pending = { waCountry: string; waNumber: string; email: string; consent: boolean; savedAt: number };
 
 export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = false }: { signedIn: boolean; automaticImport?: boolean; upworkConnect?: boolean }) {
   const [profileUrl, setProfileUrl] = useState("");
@@ -66,13 +66,22 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
     const connected = params.get("connected") === "1";
     if (!outcome && !connected) return;
     window.history.replaceState(null, "", window.location.pathname);
+    let saved: Pending | null = null;
+    try {
+      const pending = JSON.parse(window.sessionStorage.getItem(PENDING_KEY) || "null");
+      window.sessionStorage.removeItem(PENDING_KEY);
+      if (pending && typeof pending.waCountry === "string" && pending.waCountry.length === 2 &&
+          typeof pending.waNumber === "string" && pending.waNumber.length <= 40 &&
+          typeof pending.email === "string" && pending.email.length <= 254 && pending.consent === true &&
+          typeof pending.savedAt === "number" && Date.now() - pending.savedAt >= 0 && Date.now() - pending.savedAt < 15 * 60 * 1000) saved = pending;
+    } catch { /* storage blocked: the visitor re-enters the details */ }
+    if (saved) {
+      setWaCountry(saved.waCountry); setWaNumber(saved.waNumber); setEmail(saved.email); setConsent(true);
+    }
     if (outcome) { setNotice(UPWORK_NOTICES[outcome] ?? UPWORK_NOTICES.failed); return; }
     setConnectedReady(true);
-    let saved: Pending | null = null;
-    try { saved = JSON.parse(window.sessionStorage.getItem(PENDING_KEY) || "null") as Pending | null; window.sessionStorage.removeItem(PENDING_KEY); } catch { /* storage blocked: the visitor re-enters the details */ }
-    if (saved && saved.waCountry && saved.waNumber && saved.consent === true) {
-      setWaCountry(saved.waCountry); setWaNumber(saved.waNumber); setEmail(saved.email || ""); setConsent(true);
-      void runScore({ connected: true, profileUrl: "", overview: "", email: saved.email || "", waCountry: saved.waCountry, waNumber: saved.waNumber, consent: true });
+    if (saved) {
+      void runScore({ connected: true, profileUrl: "", overview: "", email: saved.email, waCountry: saved.waCountry, waNumber: saved.waNumber, consent: true });
     } else {
       setNotice("Upwork is connected. Add your WhatsApp number and tick the box below, then press the button to see your score.");
     }
@@ -149,7 +158,7 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
   const contactReady = Boolean(waCountry) && waNumber.replace(/\D/g, "").length >= 6 && consent && emailOk;
   function connectUpwork() {
     if (!contactReady || busy) return;
-    try { window.sessionStorage.setItem(PENDING_KEY, JSON.stringify({ waCountry, waNumber, email, consent } satisfies Pending)); } catch { /* the visitor re-enters them on return */ }
+    try { window.sessionStorage.setItem(PENDING_KEY, JSON.stringify({ waCountry, waNumber, email, consent, savedAt: Date.now() } satisfies Pending)); } catch { /* the visitor re-enters them on return */ }
     window.location.assign("/api/upwork/connect");
   }
 
@@ -190,7 +199,7 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
           {fieldError("email") ?? (!emailOk ? <p className="ix-l-field-error">Enter a valid email address, or leave it empty.</p> : null)}
         </div>
 
-        {!automaticImport && <div className={`ix-ps-optional ${showOverview ? "is-open" : ""}`}>
+        {!automaticImport && !connectedReady && <div className={`ix-ps-optional ${showOverview ? "is-open" : ""}`}>
           <button type="button" className="ix-ps-optional-toggle" aria-expanded={showOverview} aria-controls="ps-overview-panel" onClick={() => (showOverview ? setShowOverview(false) : openOverview())}>
             <Sparkles size={15} /> Add your overview for a fuller score <span>optional</span> <ChevronDown size={15} className="ix-ps-chevron" />
           </button>

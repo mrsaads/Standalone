@@ -148,7 +148,7 @@ export function hasStats(s: PublicProfileSnapshot | null): boolean {
 
 export function scoreTrackRecord(s: PublicProfileSnapshot): { points: number; max: number; lines: TrackLine[]; note: string } | null {
   // Nothing readable at all: the section is "not checked", not zero.
-  if (!hasStats(s)) return null;
+  if (s.unavailableSections?.includes("track") || !hasStats(s)) return null;
   const jobs = s.totalJobs ?? 0;
   const jssPts = s.jss === null ? (jobs < 3 ? 3 : 0) : s.jss >= 95 ? 8 : s.jss >= 90 ? 7 : s.jss >= 80 ? 4 : 1;
   const badgePts = s.badge === "Top Rated Plus" || s.badge === "Expert-Vetted" ? 6 : s.badge === "Top Rated" ? 5 : s.badge === "Rising Talent" ? 3 : 0;
@@ -173,6 +173,7 @@ export function scoreTrackRecord(s: PublicProfileSnapshot): { points: number; ma
 /** Rate and offer, 10 points: a rate is shown, a consultation is offered, and the rate fits the
  * track record. Rules, not opinions, so the same profile always gets the same points. */
 export function scoreOffer(s: PublicProfileSnapshot): { points: number; lines: TrackLine[]; note: string } | null {
+  if (s.unavailableSections?.includes("offer")) return null;
   if (s.hourlyRate === null && s.consultation === null && !hasStats(s)) return null;
   const jobs = s.totalJobs ?? 0;
   const rate = s.hourlyRate;
@@ -317,6 +318,8 @@ export function assembleResult(snapshot: PublicProfileSnapshot | null, ai: AiSco
   const earned = checked.reduce((a, s) => a + (s.points ?? 0), 0);
   const score = assessedPoints ? Math.round((earned / assessedPoints) * 100) : 0;
   const notChecked = ["Portfolio", "Skills", "Employment history", "Certifications", "Intro video"];
+  if (snapshot?.unavailableSections?.includes("track")) notChecked.unshift("Track record");
+  if (snapshot?.unavailableSections?.includes("offer")) notChecked.unshift("Rate and offer");
   if (!overviewScored) notChecked.unshift("Overview");
   return {
     score,

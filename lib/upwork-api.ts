@@ -25,14 +25,14 @@ const DEFAULTS = {
   graphqlUrl: "https://api.upwork.com/graphql",
 };
 
-function upworkHttps(value: string | undefined, fallback: string): string | null {
+function upworkHttps(value: string | undefined, fallback: string, env: NodeJS.ProcessEnv): string | null {
   const candidate = (value || "").trim() || fallback;
   try {
     const u = new URL(candidate);
     // Local rehearsal only: a mock Upwork on this machine. Impossible in production builds.
-    if (process.env.NODE_ENV !== "production" && process.env.UPWORK_API_ALLOW_LOCAL_TEST === "1" &&
-        u.protocol === "http:" && u.hostname === "127.0.0.1") return u.href;
-    const ok = u.protocol === "https:" && !u.port && !u.username && !u.password && !u.hash &&
+    if (process.env.NODE_ENV !== "production" && env.NODE_ENV !== "production" && env.UPWORK_API_ALLOW_LOCAL_TEST === "1" &&
+        u.protocol === "http:" && u.hostname === "127.0.0.1" && !u.username && !u.password && !u.hash) return u.href;
+    const ok = u.protocol === "https:" && !u.port && !u.username && !u.password && !u.hash && !u.search &&
       (u.hostname === "upwork.com" || u.hostname.endsWith(".upwork.com"));
     return ok ? u.href : null;
   } catch { return null; }
@@ -43,19 +43,23 @@ export function upworkApiConfig(env: NodeJS.ProcessEnv = process.env, origin?: s
   const clientId = (env.UPWORK_API_CLIENT_ID || "").trim();
   const clientSecret = (env.UPWORK_API_CLIENT_SECRET || "").trim();
   if (!clientId || !clientSecret) return null;
-  const authorizeUrl = upworkHttps(env.UPWORK_API_AUTHORIZE_URL, DEFAULTS.authorizeUrl);
-  const tokenUrl = upworkHttps(env.UPWORK_API_TOKEN_URL, DEFAULTS.tokenUrl);
-  const graphqlUrl = upworkHttps(env.UPWORK_API_GRAPHQL_URL, DEFAULTS.graphqlUrl);
+  const authorizeUrl = upworkHttps(env.UPWORK_API_AUTHORIZE_URL, DEFAULTS.authorizeUrl, env);
+  const tokenUrl = upworkHttps(env.UPWORK_API_TOKEN_URL, DEFAULTS.tokenUrl, env);
+  const graphqlUrl = upworkHttps(env.UPWORK_API_GRAPHQL_URL, DEFAULTS.graphqlUrl, env);
   if (!authorizeUrl || !tokenUrl || !graphqlUrl) return null;
   // Must equal the callback saved in the Upwork key settings, character for character.
-  const base = (env.NEXT_PUBLIC_SITE_URL || env.APP_ORIGIN || origin || "").replace(/\/+$/, "");
+  const base = (env.APP_ORIGIN || env.RENDER_EXTERNAL_URL || env.NEXT_PUBLIC_SITE_URL || origin || "").replace(/\/+$/, "");
   const redirectUri = (env.UPWORK_API_REDIRECT_URI || "").trim() || (base ? `${base}/api/upwork/callback` : "");
-  const localOk = process.env.NODE_ENV !== "production" && process.env.UPWORK_API_ALLOW_LOCAL_TEST === "1" && /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(redirectUri);
-  if (!/^https:\/\//.test(redirectUri) && !localOk) return null;
+  let callback: URL;
+  try { callback = new URL(redirectUri); } catch { return null; }
+  const localOk = process.env.NODE_ENV !== "production" && env.NODE_ENV !== "production" && env.UPWORK_API_ALLOW_LOCAL_TEST === "1" &&
+    callback.protocol === "http:" && ["localhost", "127.0.0.1"].includes(callback.hostname);
+  if ((callback.protocol !== "https:" && !localOk) || callback.username || callback.password || callback.hash || callback.search ||
+      callback.pathname !== "/api/upwork/callback") return null;
   return { clientId, clientSecret, redirectUri, authorizeUrl, tokenUrl, graphqlUrl };
 }
 
-export const upworkApiEnabled = (env: NodeJS.ProcessEnv = process.env) => Boolean(upworkApiConfig(env, "https://placeholder.invalid"));
+export const upworkApiEnabled = (env: NodeJS.ProcessEnv = process.env) => Boolean(upworkApiConfig(env));
 
 export function buildAuthorizeUrl(cfg: UpworkApiConfig, state: string): string {
   const u = new URL(cfg.authorizeUrl);
@@ -132,6 +136,7 @@ export async function graphql(cfg: UpworkApiConfig, token: string, query: string
   if (!response.ok) { await response.body?.cancel(); throw new UpworkApiError("graphql", `Upwork's API answered HTTP ${response.status}.`); }
   let body: { data?: unknown; errors?: { message?: unknown; path?: unknown }[] };
   try { body = await readJson(response) as typeof body; } catch { throw new UpworkApiError("shape", "Upwork's answer could not be read."); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw new UpworkApiError("shape", "Upwork's answer could not be read.");
   const errors = Array.isArray(body.errors) ? body.errors.slice(0, 10).map(e => ({ message: String(e?.message ?? "").slice(0, 300), path: e?.path })) : [];
   return { data: body.data ?? null, errors };
 }
