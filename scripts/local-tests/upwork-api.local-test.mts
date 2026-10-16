@@ -9,9 +9,10 @@ import { randomUUID } from "node:crypto";
 import { eq } from "drizzle-orm";
 import { getDb } from "../../db";
 import { upworkConnections } from "../../db/schema";
+import { upworkReturnPath } from "../../lib/upwork-connect-flow";
 import { buildAuthorizeUrl, exchangeCode, graphql, sameSecret, upworkApiConfig, UpworkApiError } from "../../lib/upwork-api";
 import {
-  claimEvidence, discardEvidence, evidenceFromProfile, evidenceText, holdEvidence, peekEvidence, profileKeyFrom, readOwnProfile, takeEvidence, restoreEvidence,
+  connectedAuditPreview, claimEvidence, discardEvidence, evidenceFromProfile, evidenceText, holdEvidence, peekEvidence, profileKeyFrom, readOwnProfile, takeEvidence, restoreEvidence,
 } from "../../lib/upwork-connected";
 import { assembleResult, parseAiScores, validateScoreRequest } from "../../lib/profile-score";
 
@@ -156,6 +157,31 @@ await test("metrics absent from API scopes are unassessed, not scored as zero", 
   assert.equal(result.sections.find(section => section.id === "track")?.checked, false);
   assert.equal(result.sections.find(section => section.id === "offer")?.checked, false);
   assert.ok(result.notChecked.includes("Rate and offer"));
+});
+
+await test("audit import uses actual identity and labels unavailable facts without a model call", () => {
+  const evidence = evidenceFromProfile(PROFILE, `https://www.upwork.com/freelancers/${KEY}`);
+  const preview = connectedAuditPreview(evidence);
+  assert.equal(preview.details.name, "Sara Khan");
+  assert.equal(preview.details.title, PROFILE.personalData.title);
+  assert.equal(preview.details.jobs, "24");
+  assert.equal(preview.details.jss, "");
+  assert.equal(preview.details.rate, "");
+  assert.equal(preview.details.completed, "");
+  assert.equal(preview.details.active, "");
+  assert.equal(preview.outcome, "partial");
+  assert.match(preview.profileText, /Shopify, Liquid/);
+  assert.match(preview.profileText, /Not read from Upwork/);
+  assert.equal(upworkReturnPath("audits"), "/audits");
+  for (const path of ["https://evil.example", "//evil.example", "/admin", null]) assert.equal(upworkReturnPath(path), "/profile-score");
+});
+await test("large connected profiles keep gap and truncation warnings within the audit size cap", () => {
+  const evidence = evidenceFromProfile({ ...PROFILE, projectList: Array.from({ length: 60 }, (_, n) => ({ title: `Project ${n}`, description: "x".repeat(1500) })) }, `https://www.upwork.com/freelancers/${KEY}`);
+  assert.equal(evidence.sections.projects.length, 40);
+  const text = evidenceText(evidence);
+  assert.ok(text.length <= 40000);
+  assert.match(text, /^Profile evidence was truncated/);
+  assert.match(text, /Not read from Upwork/);
 });
 
 // ---- the holding row -----------------------------------------------------------------------------

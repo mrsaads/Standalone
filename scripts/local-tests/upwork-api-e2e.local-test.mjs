@@ -229,6 +229,23 @@ await test('simultaneous score requests consume one connection and make one AI c
   assert.equal(await heldRows(), 0);
 });
 
+await test('audit connections return to the audit workspace and remain available for import', async () => {
+  jar.clear();
+  const start = await hop(`${base}/api/upwork/connect?destination=audits`);
+  assert.equal(jar.get('ix_uw_destination'), 'audits');
+  const provider = await hop(start.headers.get('location'));
+  const callback = await hop(provider.headers.get('location'));
+  assert.equal(callback.headers.get('location'), `${base}/audits?connected=1`);
+  assert.equal(jar.has('ix_uw_destination'), false);
+  assert.equal(await heldRows(), 1);
+  jar.clear();
+  const badStart = await hop(`${base}/api/upwork/connect?destination=https://evil.example`);
+  const badProvider = await hop(badStart.headers.get('location'));
+  const safeCallback = await hop(badProvider.headers.get('location'));
+  assert.equal(safeCallback.headers.get('location'), `${base}/profile-score?connected=1`);
+  await sql`delete from upwork_connections`;
+});
+
 await test('the AI failing after a good sign-in keeps the profile for a retry instead of making the customer sign in again', async () => {
   jar.clear(); await signIn();
   assert.equal(await heldRows(), 1);

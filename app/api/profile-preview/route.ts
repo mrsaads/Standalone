@@ -2,14 +2,19 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { isTrustedOrigin } from "@/lib/http";
 import { fetchUpworkProfile } from "@/lib/upwork-fetch";
+import { CONNECTION_COOKIE, connectedAuditPreview, peekEvidence } from "@/lib/upwork-connected";
+import { requestCookie } from "@/lib/upwork-connect-flow";
 import { extractBasicDetails } from "@/lib/audit-preview";
 
 // Preview-only extraction for the "Profile link" source tab. This is deliberately a separate,
 // no-credit endpoint from POST /api/audits: it exists so the review screen can show the user what
 // was actually read from Upwork *before* they commit to a full (weekly-limited, AI-billed) audit
 // run. It never reserves an audit slot and never calls an AI provider — see app/api/audits/route.ts
-// for the endpoint that does. Frontend caller: app/page.tsx's submit() when source === "link".
-const requestSchema = z.object({ profileUrl: z.string().min(1).max(1000) }).strict();
+// for the endpoint that does. The audit workspace calls it for links and connected profiles.
+const requestSchema = z.union([
+  z.object({ profileUrl: z.string().min(1).max(1000) }).strict(),
+  z.object({ connected: z.literal(true) }).strict(),
+]);
 
 const headers = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers });
@@ -24,6 +29,19 @@ export async function POST(request: Request) {
   try { body = await request.json(); } catch { return json({ error: "The request could not be read." }, 400); }
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) return json({ error: parsed.error.issues[0]?.message || "Add a profile link." }, 400);
+
+  if ("connected" in parsed.data) {
+    try {
+      const id = requestCookie(request, CONNECTION_COOKIE);
+      const evidence = id ? await peekEvidence(id) : null;
+      if (!evidence) return json({ code: "CONNECTION_EXPIRED", error: "Your connected profile has expired. Connect Upwork again to import it." }, 409);
+      // Preview only: no model call, audit reservation or credit charge. Keeping the holding row
+      // until its normal expiry lets the browser retry an interrupted import.
+      return json(connectedAuditPreview(evidence));
+    } catch {
+      return json({ error: "Your connected profile could not be loaded. Please try again shortly." }, 503);
+    }
+  }
 
   const result = await fetchUpworkProfile(parsed.data.profileUrl);
 

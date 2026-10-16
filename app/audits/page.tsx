@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/auth";
 import { getShellNav } from "@/lib/shell-data";
 import { AppShell } from "../app-shell";
+import { upworkApiEnabled } from "@/lib/upwork-api";
 import { AuditWorkspace } from "./audit-workspace";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,7 @@ export default async function AuditsPage() {
 
   return (
     <AppShell nav={nav}>
-      <AuditWorkspace />
+      <AuditWorkspace upworkConnect={upworkApiEnabled()} />
     </AppShell>
   );
 }

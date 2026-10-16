@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { buildAuthorizeUrl, upworkApiConfig } from "@/lib/upwork-api";
+import { UPWORK_DESTINATION_COOKIE, upworkReturnPath } from "@/lib/upwork-connect-flow";
 import { requestOrigin } from "@/lib/http";
 
 // "Connect Upwork": sends the visitor to Upwork's own sign-in and approval page. We never see their
@@ -10,16 +11,14 @@ const STATE_COOKIE = "ix_uw_state";
 
 export async function GET(request: Request) {
   const origin = requestOrigin(request);
+  const destination = new URL(request.url).searchParams.get("destination");
+  const returnPath = upworkReturnPath(destination);
   const cfg = upworkApiConfig(process.env, origin);
-  if (!cfg) return Response.redirect(`${origin}/profile-score?upwork=off`, 302);
+  if (!cfg) return Response.redirect(`${origin}${returnPath}?upwork=off`, 302);
   const state = randomBytes(24).toString("hex");
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
-  return new Response(null, {
-    status: 302,
-    headers: {
-      Location: buildAuthorizeUrl(cfg, state),
-      "Cache-Control": "no-store",
-      "Set-Cookie": `${STATE_COOKIE}=${state}; Path=/api/upwork; HttpOnly; SameSite=Lax; Max-Age=600${secure}`,
-    },
-  });
+  const headers = new Headers({ Location: buildAuthorizeUrl(cfg, state), "Cache-Control": "no-store" });
+  headers.append("Set-Cookie", `${STATE_COOKIE}=${state}; Path=/api/upwork; HttpOnly; SameSite=Lax; Max-Age=600${secure}`);
+  headers.append("Set-Cookie", `${UPWORK_DESTINATION_COOKIE}=${returnPath === "/audits" ? "audits" : "score"}; Path=/api/upwork; HttpOnly; SameSite=Lax; Max-Age=600${secure}`);
+  return new Response(null, { status: 302, headers });
 }

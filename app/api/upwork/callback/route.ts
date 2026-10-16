@@ -1,5 +1,6 @@
 import { exchangeCode, sameSecret, upworkApiConfig } from "@/lib/upwork-api";
 import { CONNECTION_COOKIE, holdEvidence, readOwnProfile } from "@/lib/upwork-connected";
+import { UPWORK_DESTINATION_COOKIE, upworkReturnPath } from "@/lib/upwork-connect-flow";
 import { requestOrigin } from "@/lib/http";
 import { consume, requestIdentity } from "@/lib/security/email-throttle";
 
@@ -20,10 +21,12 @@ function readCookie(request: Request, name: string) {
 export async function GET(request: Request) {
   const origin = requestOrigin(request);
   const secure = process.env.NODE_ENV === "production" ? "; Secure" : "";
+  const returnPath = upworkReturnPath(readCookie(request, UPWORK_DESTINATION_COOKIE));
   const clearState = `${STATE_COOKIE}=; Path=/api/upwork; HttpOnly; SameSite=Lax; Max-Age=0${secure}`;
   const back = (outcome: string, extra: string[] = []) => {
-    const headers = new Headers({ Location: `${origin}/profile-score?${outcome === "connected" ? "connected=1" : `upwork=${outcome}`}`, "Cache-Control": "no-store" });
+    const headers = new Headers({ Location: `${origin}${returnPath}?${outcome === "connected" ? "connected=1" : `upwork=${outcome}`}`, "Cache-Control": "no-store" });
     headers.append("Set-Cookie", clearState);
+    headers.append("Set-Cookie", `${UPWORK_DESTINATION_COOKIE}=; Path=/api/upwork; HttpOnly; SameSite=Lax; Max-Age=0${secure}`);
     for (const cookie of extra) headers.append("Set-Cookie", cookie);
     return new Response(null, { status: 302, headers });
   };

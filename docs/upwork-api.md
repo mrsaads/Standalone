@@ -1,6 +1,6 @@
 # Connect Upwork (official API)
 
-The supported way to get a customer's real Upwork profile into the score with almost no
+The supported way to get a customer's real Upwork profile into the score or an editable full-audit draft with almost no
 effort from them: they click **Connect Upwork**, sign in on upwork.com, approve read access to their
 OWN profile, and Upwork sends them back. No link is pasted, nothing is scraped, no password or
 browser session is held. It is switched off until an Upwork API key exists
@@ -106,8 +106,8 @@ corrected in one place.
 ## Tests
 
 ```sh
-npm run test:local:upwork-api   # 24 checks, mock Upwork, needs Postgres with migration 0011
-npm run test:local:upwork-e2e   # 15 checks: real app in dev mode + mock Upwork + stub AI, every failure path
+npm run test:local:upwork-api   # 26 checks, mock Upwork, needs Postgres with migration 0011
+npm run test:local:upwork-e2e   # 16 checks: real app in dev mode + mock Upwork + stub AI, every failure path
 ```
 
 The end-to-end test also needs Playwright Chromium (or set `UPWORK_BROWSER_EXECUTABLE_PATH` to
@@ -121,5 +121,14 @@ Upwork will return.
   the customer's sign-in the only options are a scraper (not permitted by Upwork's terms) or a
   public-profile API lookup whose permitted use has to be confirmed with Upwork first.
 - Customers who do not connect keep the existing flow: link + pasted overview.
-- The full audit does not use Connect yet. `evidenceText()` already produces the `profileText` for it;
-  wiring it in waits for the probe, so the audit is built on fields that really arrive.
+- Signed-in users can use **Connect Upwork** in `/audits`. The callback returns to that workspace
+  and `/api/profile-preview` imports the held evidence into the review screen. This requires an app
+  session and the private connection cookie. Importing does not call AI or consume audit allowance.
+  The user reviews and edits the draft, then explicitly generates it through the existing audit
+  route, which enforces normal credits and access rules. Imported text is supplied evidence, not
+  a guarantee that every API field was independently verified. Missing and truncated evidence
+  is labelled. Preview leaves the holding row available for retry until its normal expiry.
+- The OAuth destination is restricted to the score page or audit workspace; arbitrary return
+  URLs are never accepted. Callback errors also return to the selected workflow.
+- Live identity and profile schema compatibility still require the probe with an approved key;
+  adding full-audit import does not validate the upstream assumptions.

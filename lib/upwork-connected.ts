@@ -2,6 +2,7 @@ import { z } from "zod";
 import { and, eq, gt, lt } from "drizzle-orm";
 import { getDb } from "@/db";
 import { upworkConnections } from "@/db/schema";
+import { emptyDetails, extractBasicDetails } from "@/lib/audit-preview";
 import { graphql, UpworkApiError, type UpworkApiConfig } from "@/lib/upwork-api";
 import type { PublicProfileSnapshot } from "@/lib/upwork-fetch";
 
@@ -90,10 +91,10 @@ const str = (v: unknown, max = 5000) => (typeof v === "string" ? v.replace(/\r\n
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) ? Number(v) : null);
 const pick = (o: unknown, ...names: string[]) => { if (!isObj(o)) return undefined; for (const n of names) if (o[n] != null) return o[n]; return undefined; };
 
-function listText(value: unknown, preferred: string[], max: number): string[] {
+function listText(value: unknown, preferred: string[], max: number, maxItems = 40): string[] {
   if (!Array.isArray(value)) return [];
   const out: string[] = [];
-  for (const item of value.slice(0, 60)) {
+  for (const item of value.slice(0, maxItems)) {
     if (typeof item === "string") { if (str(item, max)) out.push(str(item, max)); continue; }
     if (!isObj(item)) continue;
     const parts: string[] = [];
@@ -125,7 +126,7 @@ export function evidenceFromProfile(profile: unknown, profileUrl: string, now = 
   const overview = str(pick(personal, "description", "overview"), 5000);
   const loc = pick(personal, "location");
   const location = [str(pick(loc, "city"), 60), str(pick(loc, "country"), 60)].filter(Boolean).join(", ") || null;
-  const skills = listText(pick(profile, "skills"), ["name", "skillName", "prettyName", "label"], 120);
+  const skills = listText(pick(profile, "skills"), ["name", "skillName", "prettyName", "label"], 120, 60);
   const employment = listText(pick(profile, "employmentRecords"), ["jobTitle", "title", "companyName", "description"], 1500);
   const projects = listText(pick(profile, "projectList"), ["title", "description"], 1500);
   const totalJobs = num(pick(aggregates, "totalJobs"));
@@ -198,6 +199,7 @@ export async function readOwnProfile(cfg: UpworkApiConfig, token: string, doFetc
 /** The text the full audit takes as `profileText`: everything read, labelled, with gaps stated. */
 export function evidenceText(e: ConnectedEvidence): string {
   const lines = [
+    e.missing.length ? `Not read from Upwork (treat as unverified, do not guess): ${e.missing.join(", ")}.` : "",
     `Name: ${e.snapshot.name ?? "not provided"}`, `Title: ${e.snapshot.title ?? "not provided"}`,
     e.snapshot.location ? `Location: ${e.snapshot.location}` : "",
     e.snapshot.badge ? `Badge: ${e.snapshot.badge}` : "", e.snapshot.totalJobs !== null ? `Total jobs: ${e.snapshot.totalJobs}` : "",
@@ -205,9 +207,32 @@ export function evidenceText(e: ConnectedEvidence): string {
     e.sections.skills.length ? `\nSkills: ${e.sections.skills.join(", ")}` : "",
     e.sections.employment.length ? `\nWork history:\n- ${e.sections.employment.join("\n- ")}` : "",
     e.sections.projects.length ? `\nPortfolio:\n- ${e.sections.projects.join("\n- ")}` : "",
-    e.missing.length ? `\nNot read from Upwork (treat as unverified, do not guess): ${e.missing.join(", ")}.` : "",
   ];
-  return lines.filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n").trim().slice(0, 40000);
+  const text = lines.filter((l, i, a) => l !== "" || a[i - 1] !== "").join("\n").trim();
+  if (text.length <= 40000) return text;
+  const notice = "Profile evidence was truncated to fit the audit. Content beyond the limit was not read and must remain unverified.\n";
+  return notice + text.slice(0, 40000 - notice.length);
+}
+
+/** Import into the existing editable audit draft. Missing facts stay explicitly unverified. */
+export function connectedAuditPreview(evidence: ConnectedEvidence) {
+  const profileText = evidenceText(evidence);
+  const snapshot = evidence.snapshot;
+  return {
+    outcome: evidence.missing.length ? "partial" as const : "success" as const,
+    profileText,
+    profileUrl: evidence.profileUrl,
+    details: {
+      ...emptyDetails, ...extractBasicDetails(profileText),
+      name: snapshot.name ?? "", title: snapshot.title ?? "",
+      rate: snapshot.hourlyRate === null ? "" : `$${snapshot.hourlyRate}/hr`,
+      jss: snapshot.jss === null ? "" : `${snapshot.jss}%`,
+      jobs: snapshot.totalJobs === null ? "" : String(snapshot.totalJobs),
+      completed: "", active: "",
+      reportName: `${snapshot.name || "Upwork"} Profile Audit`,
+    },
+    message: evidence.missing.length ? `Imported your connected profile. Not available: ${evidence.missing.join(", ")}. These details remain unverified.` : undefined,
+  };
 }
 
 /** Browser cookie that carries the holding row's id from the OAuth callback to the score request. */
