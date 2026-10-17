@@ -624,7 +624,6 @@ export const authEmailThrottle = pgTable("auth_email_throttle", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => [index("idx_auth_email_throttle_updated").on(table.updatedAt)]).enableRLS();
 
-<<<<<<< Updated upstream
 // A customer's own Upwork profile, read through Upwork's official API after THEY approved access on
 // Upwork's own page ("Connect Upwork", lib/upwork-api.ts). It exists for minutes: the OAuth callback
 // writes one row, the score request that follows claims it (deleting it in the same statement), and
@@ -637,7 +636,7 @@ export const upworkConnections = pgTable("upwork_connections", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, (table) => [index("idx_upwork_connections_expires").on(table.expiresAt)]).enableRLS();
-=======
+
 // One row per attempt to pay for one audit report (lib/audit-payments.ts). A report is unlocked when
 // a row for it reaches status "paid": that is the only thing that ever unlocks a single report, so
 // there is exactly one place to look when someone asks "why can this person download this?".
@@ -670,4 +669,3 @@ export const paymentOrders = pgTable("payment_orders", {
   index("idx_payment_orders_user").on(table.userId, table.createdAt),
   index("idx_payment_orders_status").on(table.status, table.createdAt),
 ]).enableRLS();
->>>>>>> Stashed changes
