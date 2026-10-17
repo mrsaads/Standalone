@@ -29,6 +29,7 @@ const AREAS: { href: string; label: string; count?: keyof AdminNavCounts }[] = [
   { href: "/admin/clients", label: "Client portals" },
   { href: "/admin/notifications", label: "Notifications" },
   { href: "/admin/enquiries", label: "Enquiries", count: "enquiries" },
+  { href: "/admin/payments", label: "Payments" },
   { href: "/admin/requests", label: "Optimization", count: "optimization" },
   { href: "/admin/accounts", label: "Audits & members" },
 ];
