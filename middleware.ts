@@ -17,7 +17,14 @@ import { BROWSER_ID_COOKIE, browserIdCookieOptions, mintBrowserId, verifyBrowser
 // robots.txt or the sitemap never finds any of the pages those files exist to advertise.
 const publicPaths = [
   "/", "/login", "/signup", "/reset-password", "/verify", "/auth/callback", "/auth/confirm", "/api/auth", "/api/leads",
+<<<<<<< Updated upstream
   "/profile-score", "/api/profile-score", "/api/upwork",
+=======
+  "/profile-score", "/api/profile-score",
+  // JazzCash posts the customer's browser back here without our login cookie; the route verifies the
+  // gateway's signature itself. See app/api/payments/jazzcash/return/route.ts.
+  "/api/payments/jazzcash/return",
+>>>>>>> Stashed changes
   "/services", "/upwork-bidding-agency", "/robots.txt", "/sitemap.xml", "/opengraph-image", "/twitter-image",
 ];
 function isPublicPath(pathname: string) {

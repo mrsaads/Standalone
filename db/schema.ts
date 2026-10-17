@@ -624,6 +624,7 @@ export const authEmailThrottle = pgTable("auth_email_throttle", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
 }, (table) => [index("idx_auth_email_throttle_updated").on(table.updatedAt)]).enableRLS();
 
+<<<<<<< Updated upstream
 // A customer's own Upwork profile, read through Upwork's official API after THEY approved access on
 // Upwork's own page ("Connect Upwork", lib/upwork-api.ts). It exists for minutes: the OAuth callback
 // writes one row, the score request that follows claims it (deleting it in the same statement), and
@@ -636,3 +637,37 @@ export const upworkConnections = pgTable("upwork_connections", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, (table) => [index("idx_upwork_connections_expires").on(table.expiresAt)]).enableRLS();
+=======
+// One row per attempt to pay for one audit report (lib/audit-payments.ts). A report is unlocked when
+// a row for it reaches status "paid": that is the only thing that ever unlocks a single report, so
+// there is exactly one place to look when someone asks "why can this person download this?".
+//
+// `amount_minor` is in paisa (Rs 1 = 100), the unit the gateway wants, so there is no rounding step
+// between what the customer is shown, what is sent to the gateway and what comes back.
+// `txn_ref` is the reference sent to the gateway and shown to a manual payer; it is unique, so a
+// replayed or forged return can only ever land on one row. The partial unique index on `audit_id`
+// allows many failed or pending attempts for a report but only one paid one.
+export const paymentOrders = pgTable("payment_orders", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: uuid("user_id").notNull(),
+  userEmail: text("user_email").notNull(),
+  auditId: uuid("audit_id").notNull(),
+  amountMinor: integer("amount_minor").notNull(),
+  currency: text("currency").notNull().default("PKR"),
+  gateway: text("gateway").notNull(),                    // "jazzcash" | "manual"
+  status: text("status").notNull().default("pending"),   // pending | awaiting_review | paid | failed | cancelled
+  txnRef: text("txn_ref").notNull(),
+  payerNote: text("payer_note").notNull().default(""),   // what a manual payer typed ("sent from 0300…, txn 123")
+  gatewayCode: text("gateway_code").notNull().default(""),
+  gatewayMessage: text("gateway_message").notNull().default(""),
+  paidAt: timestamp("paid_at", { withTimezone: true }),
+  paidBy: text("paid_by").notNull().default(""),         // "jazzcash" or the admin's email
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().default(sql`now()`),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().default(sql`now()`),
+}, (table) => [
+  uniqueIndex("uq_payment_orders_txn_ref").on(table.txnRef),
+  uniqueIndex("uq_payment_orders_one_paid_per_audit").on(table.auditId).where(sql`${table.status} = 'paid'`),
+  index("idx_payment_orders_user").on(table.userId, table.createdAt),
+  index("idx_payment_orders_status").on(table.status, table.createdAt),
+]).enableRLS();
+>>>>>>> Stashed changes

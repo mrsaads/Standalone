@@ -19,7 +19,8 @@ const csp = [
   "frame-src 'none'",
   "object-src 'none'",
   "base-uri 'self'",
-  "form-action 'self'",
+  // JazzCash's hosted checkout: the report page posts a signed form to the gateway (lib/jazzcash.ts).
+  "form-action 'self' https://sandbox.jazzcash.com.pk https://payments.jazzcash.com.pk",
   "upgrade-insecure-requests",
 ].join("; ");
 

@@ -24,6 +24,7 @@
     "test:local:lead-form": "tsx scripts/local-tests/lead-form.local-test.mts",
     "test:local:marketing": "tsx scripts/local-tests/marketing-content.local-test.mts",
     "test:local:profile-score": "tsx scripts/local-tests/profile-score.local-test.mts",
+<<<<<<< Updated upstream
     "test:local:audit-schema": "tsx scripts/local-tests/audit-schema-tolerance.local-test.mts",
     "browser:login": "node scripts/upwork-browser/login.mjs",
     "browser:verify": "node scripts/upwork-browser/verify.mjs",
@@ -33,6 +34,10 @@
     "test:local:upwork-api": "tsx scripts/local-tests/upwork-api.local-test.mts",
     "upwork:api-probe": "node scripts/upwork-api/probe.mjs",
     "test:local:upwork-e2e": "node scripts/local-tests/upwork-api-e2e.local-test.mjs"
+=======
+    "test:local:payments": "tsx scripts/local-tests/payments.local-test.mts",
+    "test:local:audit-schema": "tsx scripts/local-tests/audit-schema-tolerance.local-test.mts"
+>>>>>>> Stashed changes
   },
   "dependencies": {
     "@fontsource/poppins": "^5.3.0",

@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { profileAudits } from "@/db/schema";
 import type { AuditReport } from "@/lib/audit-report";
 import { entitlementFor } from "@/lib/entitlements";
+import { entitlementForAudit } from "@/lib/audit-payments";
 import { createAuditPdf, createAuditDocxBuffer } from "@/lib/sample-report";
 
 const headers = { "Cache-Control": "no-store" };
@@ -31,10 +32,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (row.userId !== user.id && user.role !== "admin") return json({ error: "Audit not found." }, 404);
   if (row.status !== "completed") return json({ error: "This audit has not finished generating." }, 409);
 
-  const entitlement = entitlementFor(user);
+  const entitlement = await entitlementForAudit(entitlementFor(user), row.id);
   if (!entitlement.canDownload) {
     return json({
-      error: "Downloading the PDF/Word report requires a subscriber account. Use \"Request optimization by a person\" or contact Improvexus to upgrade.",
+      error: "Unlock this report to download the PDF or Word file.",
       code: "UPGRADE_REQUIRED",
     }, 403);
   }

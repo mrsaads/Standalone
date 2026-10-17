@@ -4,6 +4,7 @@ import { getDb } from "@/db";
 import { profileAudits } from "@/db/schema";
 import type { AuditReport } from "@/lib/audit-report";
 import { entitlementFor } from "@/lib/entitlements";
+import { entitlementForAudit } from "@/lib/audit-payments";
 import { applyAuditAccess } from "@/lib/audit-access";
 
 const headers = { "Cache-Control": "no-store" };
@@ -25,7 +26,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // so this must be checked explicitly rather than left to fail as an unhandled 500.
   if (row.status !== "completed") return Response.json({ error: "This audit has not finished generating." }, { status: 409, headers });
   const report = JSON.parse(row.reportJson) as AuditReport;
-  const entitlement = entitlementFor(user);
+  // A report that has been paid for is unlocked for whoever opens it (its owner, or an admin), on top
+  // of whatever the account itself is entitled to. See lib/audit-payments.ts.
+  const entitlement = await entitlementForAudit(entitlementFor(user), row.id);
   // The SAME redaction as the generation endpoint, from the same function — this route is how the
   // "audit ready" email's ?openAudit= link and the saved-audits list reopen a report, so a free
   // account that generated an audit while paying, or that simply keeps the old link, must get the
