@@ -48,6 +48,20 @@ try {
     assert.match(capture.text, /100% Job Success/);
     assert.equal('cookies' in capture, false);
   });
+  await context.unroute('**/*');
+  await context.route('**/*', route => route.fulfill({ contentType: 'text/html', body: `
+    <title>Profile</title><main><h1>Test Freelancer</h1><p>Skills Portfolio Total jobs 28</p></main>
+    <script>setTimeout(() => {
+      const section = document.createElement('section');
+      section.setAttribute('data-test', 'profile-overview');
+      section.textContent = ${JSON.stringify(overview + ' I also integrate captcha forms for stores.')};
+      document.querySelector('main').append(section);
+    }, 300);</script>` }));
+  const delayed = await captureProfile(context, url);
+  check('capture waits for hydrated overview and allows ordinary captcha-related profile text', () => {
+    assert.equal(delayed.ok, true);
+    if (delayed.ok && 'overview' in delayed) assert.match(delayed.overview, /captcha forms/);
+  });
   await context.close();
 } finally { await browser.close(); }
 

@@ -136,3 +136,17 @@ The container smoke test uses an isolated temporary volume, fake service credent
 outbound networking. It checks the actual noVNC-to-display connection, login-mode capture pause,
 and a fresh-container restart using the same volume. It verifies retained Chromium profile files,
 not survival of a real Upwork login. Temporary containers and the test volume are removed afterward.
+
+## Verify a deployed worker
+
+Set `UPWORK_BROWSER_URL` and `UPWORK_BROWSER_TOKEN` privately in the operator shell environment,
+then run:
+
+```sh
+npm run browser:verify -- 'https://www.upwork.com/freelancers/PROFILE_ID'
+```
+
+This performs an authenticated health check and one real capture, validates the matching URL and
+minimum evidence, and prints character counts only. It exits unsuccessfully on a login challenge,
+missing overview, invalid credentials, or unavailable worker. Respect the 15-second cooldown.
+It does not create a login or solve verification; complete sign-in in the protected desktop first.

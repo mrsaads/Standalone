@@ -26,6 +26,7 @@
     "test:local:profile-score": "tsx scripts/local-tests/profile-score.local-test.mts",
     "test:local:audit-schema": "tsx scripts/local-tests/audit-schema-tolerance.local-test.mts",
     "browser:login": "node scripts/upwork-browser/login.mjs",
+    "browser:verify": "node scripts/upwork-browser/verify.mjs",
     "browser:worker": "node scripts/upwork-browser/server.mjs",
     "test:local:browser": "tsx scripts/local-tests/upwork-browser.local-test.mts",
     "test:local:desktop": "tsx scripts/local-tests/upwork-desktop.local-test.mts",

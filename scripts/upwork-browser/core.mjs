@@ -18,7 +18,7 @@ export function allowedResource(value) {
 }
 
 export function classifyCapture({ url, title, text, overview, heading }) {
-  if (/captcha|verify you are (?:a )?human|checking your browser|access denied|attention required|enable javascript and cookies to continue/i.test(`${title}\n${text}`))
+  if (/verify you are (?:a )?human|checking your browser|access denied|attention required|enable javascript and cookies to continue/i.test(`${title}\n${text}`))
     return { ok: false, outcome: 'blocked' };
   if (!profileUrl(url) || /log in to upwork|sign in to upwork/i.test(title))
     return { ok: false, outcome: 'login_required' };
@@ -41,9 +41,18 @@ export async function captureProfile(context, url) {
     await page.locator('h1').first().waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
     // Only expand the profile overview, never arbitrary links or account controls.
     const overviewRoot = page.locator('[data-test="profile-overview"], [data-test="overview"], .profile-overview').first();
-    if (await overviewRoot.count()) {
+    // Hydration can finish after the heading appears. Wait for the overview itself.
+    await overviewRoot.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
+    if (await overviewRoot.isVisible().catch(() => false)) {
       const more = overviewRoot.getByRole('button', { name: /^(more|show more)$/i }).first();
-      if (await more.isVisible().catch(() => false)) await more.click();
+      if (await more.isVisible().catch(() => false)) {
+        const before = await overviewRoot.innerText();
+        await more.click();
+        await page.waitForFunction(({ selector, before }) => {
+          const root = document.querySelector(selector);
+          return root && root.innerText !== before;
+        }, { selector: '[data-test="profile-overview"], [data-test="overview"], .profile-overview', before }, { timeout: 5000 }).catch(() => {});
+      }
     }
     const evidence = await page.evaluate(() => {
       const root = document.querySelector('main') || document.body;
