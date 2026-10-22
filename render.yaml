@@ -15,6 +15,7 @@ services:
     plan: starter
     region: oregon
     buildCommand: npm ci && npm run build
+    preDeployCommand: npm run db:migrate
     startCommand: npm run start
     healthCheckPath: /login
     envVars:
