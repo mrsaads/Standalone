@@ -10,9 +10,11 @@ The customer first enters the exact Upwork profile URL. After OAuth, the returne
 UPWORK_MCP_ENABLED=true
 UPWORK_MCP_APP_ORIGIN=https://www.improvexus.com
 UPWORK_MCP_SESSION_SECRET=<at-least-32-random-characters>
+UPWORK_MCP_CLIENT_ID=<enabled-client-id-issued-by-upwork>
+UPWORK_MCP_CLIENT_SECRET=<client-secret-issued-by-upwork>
 ```
 
-By default the app publishes an OAuth Client ID Metadata Document at `/api/upwork/mcp/client`. If Upwork supplies a registered OAuth client instead, also set `UPWORK_MCP_CLIENT_ID` and, only when issued, `UPWORK_MCP_CLIENT_SECRET`.
+The app publishes an OAuth Client ID Metadata Document at `/api/upwork/mcp/client`, but Upwork's authorization endpoint currently rejects metadata URLs as client IDs. An enabled, registered client ID is therefore required. The existing `UPWORK_API_CLIENT_ID` and `UPWORK_API_CLIENT_SECRET` names are also accepted after Upwork approves that key.
 
 The callback is `https://www.improvexus.com/api/upwork/mcp/callback`. The configured origin is canonical and request host headers cannot change it.
 

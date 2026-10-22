@@ -8,7 +8,7 @@ import { parseContentScores } from "../../lib/profile-content-score";
 
 let checks = 0;
 const check = (name: string, fn: () => void) => { fn(); checks++; console.log(`ok - ${name}`); };
-const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "test", UPWORK_MCP_ENABLED: "true", UPWORK_MCP_ALLOW_LOCAL_TEST: "1", UPWORK_MCP_APP_ORIGIN: "http://127.0.0.1:3210", UPWORK_MCP_SESSION_SECRET: "s".repeat(32) };
+const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "test", UPWORK_MCP_ENABLED: "true", UPWORK_MCP_ALLOW_LOCAL_TEST: "1", UPWORK_MCP_APP_ORIGIN: "http://127.0.0.1:3210", UPWORK_MCP_SESSION_SECRET: "s".repeat(32), UPWORK_MCP_CLIENT_ID: "registered-test-client" };
 const cfg = upworkMcpConfig(env)!;
 const target = "https://www.upwork.com/freelancers/~01fe913b052b79af17";
 const flow = newMcpFlow({ profileUrl: `${target}?tracking=x`, destination: "score" }, 1000);

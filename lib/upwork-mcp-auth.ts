@@ -43,12 +43,15 @@ export function upworkMcpConfig(env: NodeJS.ProcessEnv = process.env): UpworkMcp
   const sessionSecret = env.UPWORK_MCP_SESSION_SECRET || "";
   if (!origin || sessionSecret.length < 32) return null;
   const metadataUrl = `${origin}${CLIENT_PATH}`;
-  const explicitId = env.UPWORK_MCP_CLIENT_ID?.trim();
-  const clientSecret = env.UPWORK_MCP_CLIENT_SECRET?.trim() || undefined;
-  // A client secret is only valid with its own registered client id; never attach it to CIMD.
-  if ((clientSecret && !explicitId) || (explicitId && (explicitId.length > 2048 || /[\u0000-\u0020]/.test(explicitId)))) return null;
+  // Upwork's metadata advertises Client ID Metadata Document support, but its authorization
+  // endpoint currently rejects a metadata URL with "Client not found or disabled". Require an
+  // enabled, registered client until Upwork makes CIMD work end to end. The legacy names are
+  // accepted so an approved Upwork developer key can be used without duplicating secrets.
+  const explicitId = (env.UPWORK_MCP_CLIENT_ID || env.UPWORK_API_CLIENT_ID || "").trim();
+  const clientSecret = (env.UPWORK_MCP_CLIENT_SECRET || env.UPWORK_API_CLIENT_SECRET || "").trim() || undefined;
+  if (!explicitId || explicitId.length > 2048 || /[\u0000-\u0020]/.test(explicitId)) return null;
   return {
-    origin, clientId: explicitId || metadataUrl, clientSecret, metadataUrl,
+    origin, clientId: explicitId, clientSecret, metadataUrl,
     redirectUri: `${origin}${CALLBACK_PATH}`, sessionSecret, secureCookies: origin.startsWith("https:"),
   };
 }
