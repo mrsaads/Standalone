@@ -31,6 +31,8 @@ const UPWORK_NOTICES: Record<string, string> = {
   busy: "Too many Upwork sign-ins from this network just now. Please try again in a few minutes.",
   scope: "Upwork didn't allow us to read your profile with that sign-in. Paste your profile link below instead.",
   failed: "We couldn't read your profile from Upwork just now. No score was generated. Please try again in a few minutes.",
+  mismatch: "That link belongs to a different profile than the connected Upwork account.",
+  account: "Connect the freelancer account that owns the profile link.",
 };
 const PENDING_KEY = "ix_ps_pending";
 type Pending = { waCountry: string; waNumber: string; email: string; consent: boolean; savedAt: number };
@@ -157,9 +159,9 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
   // storage so the score can start by itself when Upwork sends the visitor back.
   const contactReady = Boolean(waCountry) && waNumber.replace(/\D/g, "").length >= 6 && consent && emailOk;
   function connectUpwork() {
-    if (!contactReady || busy) return;
+    if (!contactReady || busy || !looksLikeProfileLink(profileUrl)) { setFields(current => ({ ...current, profileUrl: "Add the Upwork profile link you want to score first." })); return; }
     try { window.sessionStorage.setItem(PENDING_KEY, JSON.stringify({ waCountry, waNumber, email, consent, savedAt: Date.now() } satisfies Pending)); } catch { /* the visitor re-enters them on return */ }
-    window.location.assign("/api/upwork/connect");
+    window.location.assign(`/api/upwork/mcp/connect?destination=score&profileUrl=${encodeURIComponent(profileUrl)}`);
   }
 
   const fieldError = (key: ScoreFieldKey) => fields[key] ? <p className="ix-l-field-error" role="alert" id={`ps-${key}-error`}>{fields[key]}</p> : null;
@@ -205,7 +207,7 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
           </button>
           {showOverview && (
             <div className="ix-l-field" id="ps-overview-panel">
-              <p className="ix-l-field-help">Upwork keeps the overview hidden from people who aren&apos;t signed in, so we can only score it if you paste it here. Without it we score your title, stats, rate and offer.</p>
+              <p className="ix-l-field-help">Connect Upwork to import all five profile sections, or paste your overview here for a more complete score without connecting.</p>
               <Textarea id="ps-overview" ref={overviewRef} className="ix-ps-overview" maxLength={OVERVIEW_MAX} value={overview} disabled={busy}
                 onChange={e => { setOverview(e.target.value); clear("overview"); }}
                 aria-label="Your profile overview" aria-invalid={!!fields.overview || !overviewOk || undefined} aria-describedby={describe("overview") ?? "ps-overview-count"}
@@ -232,10 +234,10 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
 
         {upworkConnect && !connectedReady && (
           <div className="ix-ps-connect">
-            <button type="button" className="ix-l-btn-solid ix-l-submit ix-ps-submit" disabled={!contactReady || busy} onClick={connectUpwork}>
-              <Link2 size={16} /> Connect Upwork to score from your real profile
+            <button type="button" className="ix-l-btn-solid ix-l-submit ix-ps-submit" disabled={!contactReady || !looksLikeProfileLink(profileUrl) || busy} onClick={connectUpwork}>
+              <Link2 size={16} /> Connect Upwork and import this profile
             </button>
-            <p className="ix-ps-connect-note">You sign in on Upwork&apos;s own page and approve read access to your own profile, so there is nothing to paste. We never see your Upwork password. {contactReady ? "" : "Add your WhatsApp number and tick the box first."}</p>
+            <p className="ix-ps-connect-note">You sign in on Upwork and approve read-only access. We import the title, overview, skills, portfolio, and certifications for the link above. We never see your password. {contactReady ? "" : "Add your WhatsApp number and tick the box first."}</p>
             <p className="ix-ps-or" aria-hidden="true"><span>or paste your link above and score without connecting</span></p>
           </div>
         )}
@@ -265,7 +267,7 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
           <h2>What you get</h2>
           <ul>
             <li>A score out of 100, measured against the pattern top Upwork profiles follow.</li>
-            <li>Points for your title, track record, rate and offer{automaticImport ? ", and the overview read from your profile." : ", and your overview if you add it."}</li>
+            <li>Points for your title, overview, skills, portfolio and certifications{automaticImport ? " imported from your connected profile." : "; connect Upwork to import every section."}</li>
             <li>The three changes that would raise your score the most.</li>
           </ul>
           <p className="ix-ps-aside-note"><MessageCircle size={14} /> We&apos;ll only use your WhatsApp number to talk to you about your score.</p>

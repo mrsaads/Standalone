@@ -10,6 +10,7 @@ import {
   assembleResult, buildScoringPrompt, callScorer, leadSummary, measureOverview, measureTitle,
   nothingToScore, parseAiScores, validateScoreRequest, ScoringError, type AiScores,
 } from "@/lib/profile-score";
+import { scoreContentProfile } from "@/lib/profile-content-score";
 
 // The free public profile score. A signed-out visitor sends their Upwork link and WhatsApp number,
 // optionally their email and overview; we save them as a lead, read the public header of the
@@ -159,6 +160,21 @@ export async function POST(request: Request) {
       error: "Upwork didn't let us read your profile automatically just now. Paste your overview below and we'll score it, or try again in a few minutes.",
       fields: { overview: "Paste the overview from your Upwork profile to get your score." },
     }, 422);
+  }
+
+  // MCP imports are deliberately assessed only on the five fields the product promises: title,
+  // overview, skills, portfolio, and certifications. Missing platform metrics never affect this score.
+  if (held?.contentProfile) {
+    let result;
+    try { result = await scoreContentProfile(held.contentProfile); }
+    catch (error) {
+      await giveBack();
+      console.error("Profile content scoring failed", error instanceof Error ? error.name : "UnknownError");
+      return json({ error: "We couldn't score your profile right now. Please try again in a minute." }, 502);
+    }
+    await db.update(leads).set({ name: (result.profile.name || "Profile score visitor").slice(0, 100), goals: leadSummary(result) })
+      .where(eq(leads.id, req.submissionId)).catch(() => {});
+    return json({ result }, 200, { "Set-Cookie": `${CONNECTION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === "production" ? "; Secure" : ""}` });
   }
 
   // 4. Claude judges the title and, when supplied, the overview. With neither (only stats were

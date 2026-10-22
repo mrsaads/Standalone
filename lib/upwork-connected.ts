@@ -5,6 +5,7 @@ import { upworkConnections } from "@/db/schema";
 import { emptyDetails, extractBasicDetails } from "@/lib/audit-preview";
 import { graphql, UpworkApiError, type UpworkApiConfig } from "@/lib/upwork-api";
 import type { PublicProfileSnapshot } from "@/lib/upwork-fetch";
+import type { ContentProfile } from "@/lib/upwork-mcp-client";
 
 // Reads a customer's OWN Upwork profile through the official API, after they approved access, and
 // turns it into the evidence the score and audit already understand. The shape of Upwork's answers is
@@ -67,6 +68,7 @@ export type ConnectedEvidence = {
   /** Which fields could not be read, in words the report can print. Empty means everything asked for arrived. */
   missing: string[];
   readAt: string;
+  contentProfile?: ContentProfile;
 };
 
 const evidenceSchema = z.object({
@@ -83,6 +85,13 @@ const evidenceSchema = z.object({
   sections: z.object({ skills: z.array(z.string().max(120)).max(60), employment: z.array(z.string().max(1500)).max(40), projects: z.array(z.string().max(1500)).max(40) }),
   missing: z.array(z.string().max(120)).max(20),
   readAt: z.string().max(40),
+  contentProfile: z.object({
+    profileUrl: z.string().url().max(500), name: z.string().max(200).optional(), title: z.string().max(300), overview: z.string().max(5000),
+    skills: z.array(z.string().max(120)).max(60),
+    portfolio: z.array(z.object({ title: z.string().max(300), description: z.string().max(2000), role: z.string().max(300).optional(), skills: z.array(z.string().max(120)).max(60).optional() }).strict()).max(40),
+    certifications: z.array(z.object({ name: z.string().max(300), issuer: z.string().max(200).optional(), description: z.string().max(1000).optional(), url: z.string().url().max(1000).optional() }).strict()).max(40),
+    missing: z.array(z.string().max(120)).max(20), readAt: z.string().max(40),
+  }).strict().optional(),
 });
 
 // ---- tolerant reading --------------------------------------------------------------------------
@@ -198,6 +207,18 @@ export async function readOwnProfile(cfg: UpworkApiConfig, token: string, doFetc
 
 /** The text the full audit takes as `profileText`: everything read, labelled, with gaps stated. */
 export function evidenceText(e: ConnectedEvidence): string {
+  if (e.contentProfile) {
+    // Imported lazily would complicate a pure formatter; keep the same bounded, labelled shape here.
+    const p = e.contentProfile;
+    return [
+      "Assessment scope: title, overview, skills, portfolio, and certifications only.",
+      p.missing.length ? `Not returned by Upwork: ${p.missing.join(", ")}. Do not infer or score those fields.` : "",
+      `Name: ${p.name ?? "not provided"}`, `Title: ${p.title || "not provided"}`, "", "Overview:", p.overview || "not provided",
+      `\nSkills: ${p.skills.length ? p.skills.join(", ") : "none listed"}`,
+      `\nPortfolio:\n${p.portfolio.length ? p.portfolio.map(x => `- ${[x.title, x.role, x.description, x.skills?.join(", ")].filter(Boolean).join(" — ")}`).join("\n") : "- none listed"}`,
+      `\nCertifications:\n${p.certifications.length ? p.certifications.map(x => `- ${[x.name, x.issuer, x.description, x.url].filter(Boolean).join(" — ")}`).join("\n") : "- none listed"}`,
+    ].filter(Boolean).join("\n").slice(0, 40000);
+  }
   const lines = [
     e.missing.length ? `Not read from Upwork (treat as unverified, do not guess): ${e.missing.join(", ")}.` : "",
     `Name: ${e.snapshot.name ?? "not provided"}`, `Title: ${e.snapshot.title ?? "not provided"}`,

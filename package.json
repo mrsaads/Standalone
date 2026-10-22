@@ -31,6 +31,7 @@
     "test:local:browser": "tsx scripts/local-tests/upwork-browser.local-test.mts",
     "test:local:desktop": "tsx scripts/local-tests/upwork-desktop.local-test.mts",
     "test:local:upwork-api": "tsx scripts/local-tests/upwork-api.local-test.mts",
+    "test:local:upwork-mcp": "tsx scripts/local-tests/upwork-mcp.local-test.mts",
     "upwork:api-probe": "node scripts/upwork-api/probe.mjs",
     "test:local:upwork-e2e": "node scripts/local-tests/upwork-api-e2e.local-test.mjs",
     "test:local:payments": "tsx scripts/local-tests/payments.local-test.mts"

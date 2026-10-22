@@ -3,8 +3,7 @@
 #
 # The Next.js service handles the app and its persisted delivery queue via an
 # in-process poller that starts inside this same service via instrumentation.ts — see
-# lib/delivery-worker.ts. A separate Docker web service below handles Upwork browser capture.
-# The browser worker needs a paid instance and a persistent disk. See docs/upwork-browser.md.
+# lib/delivery-worker.ts. Upwork profile imports use the official Upwork MCP OAuth flow.
 #
 # Every env var below with `sync: false` must be entered by hand in the Render dashboard after
 # import — see the handover's credential checklist for exactly what each one is and where to get
@@ -21,10 +20,13 @@ services:
     envVars:
       - key: NODE_VERSION
         value: 22.22.2
-      # Add UPWORK_BROWSER_URL manually after a successful live capture.
-      # Both services need the same private token.
-      - key: UPWORK_BROWSER_TOKEN
-        sync: false
+      # Official Upwork MCP OAuth. Customers approve read-only access to their own profile.
+      - key: UPWORK_MCP_ENABLED
+        value: "true"
+      - key: UPWORK_MCP_APP_ORIGIN
+        value: https://www.improvexus.com
+      - key: UPWORK_MCP_SESSION_SECRET
+        generateValue: true
       # Upwork official API ("Connect Upwork", docs/upwork-api.md). Add only after Upwork approves a key.
       - key: UPWORK_API_CLIENT_ID
         sync: false
@@ -91,25 +93,3 @@ services:
       # service, and lib/delivery-worker.ts falls back to it when building the "your audit is
       # ready" email's report link. Only set APP_ORIGIN by hand if serving from a custom domain
       # that should appear in that link instead of the onrender.com one.
-
-  - type: web
-    name: improvexus-upwork-browser
-    runtime: docker
-    dockerfilePath: ./scripts/upwork-browser/Dockerfile
-    dockerContext: .
-    plan: standard
-    region: oregon
-    healthCheckPath: /live
-    disk:
-      name: upwork-browser-session
-      mountPath: /var/data
-      sizeGB: 1
-    envVars:
-      - key: PORT
-        value: "3100"
-      - key: UPWORK_BROWSER_TOKEN
-        sync: false
-      - key: UPWORK_BROWSER_ADMIN_PASSWORD
-        sync: false
-      - key: UPWORK_BROWSER_LOGIN_MODE
-        value: "false"

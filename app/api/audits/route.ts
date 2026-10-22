@@ -42,6 +42,7 @@ const requestSchema = z.object({
     completed: z.string().max(40),
     active: z.string().max(40),
   }).strict(),
+  evidenceScope: z.enum(["full", "profile-content"]).optional().default("full"),
 }).strict().refine(value => value.profileText.trim().length >= 80 || Boolean(value.profileUrl.trim()), {
   message: "Add profile text or an Upwork profile link.",
 });
@@ -109,6 +110,9 @@ If web research is available, use it only for current niche terminology or exter
 Writing style for every note, action, priority, summary, headline and overview you write: plain everyday English, the way an experienced consultant would explain it to a client in person. Use short, complete sentences and ordinary words. Do not use em dashes or en dashes; end the sentence or use a comma. Do not use semicolons, slashes between alternatives, or "not X but Y" constructions. Do not use stock phrases such as "leverage", "elevate", "unlock", "seamless", "robust", "tailored", "in today's", "stand out from the crowd" or "take it to the next level". Do not open with praise and do not end with a slogan. Text quoted as evidence from the profile must stay exactly as it appears in the source.
 Return only the requested JSON object. Do not use markdown.`;
 
+const contentScopeInstructions = `${instructions}
+This report was imported through Upwork MCP with a restricted evidence scope. Assess ONLY title, overview, skills, portfolio text, and certifications. For every criterion requiring photos, video, JSS, reviews, jobs, hours, badges, pricing, contracts, employment, identity verification, or other missing platform evidence, set status to "nv" and say it was not provided. Those criteria must not influence the score or priorities. Do not infer them from absence. Portfolio visuals are not available, so visual-thumbnail criteria are also "nv". Base recommendations only on the five supplied fields.`;
+
 function makePrompt(input: z.infer<typeof requestSchema>, profileText: string) {
   return `<profile_source>\n${profileText}\n</profile_source>\n<declared_details>\n${JSON.stringify(input.details)}\n</declared_details>\n<client_context>\n${input.clientContext || "No additional concern supplied."}\n</client_context>\n<profile_url_reference>\n${input.profileUrl || "Not supplied"}\n</profile_url_reference>\n\nCreate the complete Improvexus Upwork audit now. Use empty strings where a profile identity field is genuinely unavailable.`;
 }
@@ -145,14 +149,14 @@ class AiProviderError extends Error {
   }
 }
 
-async function runOpenAI(prompt: string) {
+async function runOpenAI(prompt: string, system = instructions) {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("AI_NOT_CONFIGURED");
   const model = process.env.AI_MODEL || "gpt-5.2";
   const requestId = randomUUID();
   const body: Record<string, unknown> = {
     model,
-    instructions,
+    instructions: system,
     input: prompt,
     reasoning: { effort: process.env.AI_REASONING_EFFORT || "medium" },
     max_output_tokens: 12000,
@@ -188,7 +192,7 @@ async function runOpenAI(prompt: string) {
   return { value: parseJsonText(text), provider: `OpenAI · ${model}` };
 }
 
-async function runAnthropic(prompt: string) {
+async function runAnthropic(prompt: string, system = instructions) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("AI_NOT_CONFIGURED");
   // claude-sonnet-5 is the current default; AI_MODEL still overrides it for rollback or testing a
@@ -220,7 +224,7 @@ async function runAnthropic(prompt: string) {
       body: JSON.stringify({
         model,
         max_tokens: 12000,
-        system: `${instructions}\nThe JSON must match this schema: ${JSON.stringify(auditJsonSchema)}`,
+        system: `${system}\nThe JSON must match this schema: ${JSON.stringify(auditJsonSchema)}`,
         messages: [{ role: "user", content: prompt }],
         output_config: { effort },
       }),
@@ -325,7 +329,8 @@ export async function POST(request: Request) {
   // Anthropic (Claude Sonnet) is the default provider per the current product configuration; set
   // AI_PROVIDER=openai in the environment to roll back without a code change.
   const provider = (process.env.AI_PROVIDER || "anthropic").toLowerCase();
-  const runProvider = (prompt: string) => provider === "anthropic" ? runAnthropic(prompt) : runOpenAI(prompt);
+  const system = parsed.data.evidenceScope === "profile-content" ? contentScopeInstructions : instructions;
+  const runProvider = (prompt: string) => provider === "anthropic" ? runAnthropic(prompt, system) : runOpenAI(prompt, system);
 
   // Invalid AI output must never reach the client as a report: an unparsable or schema-invalid
   // response is retried exactly once with a corrective note that names what was wrong (so the retry

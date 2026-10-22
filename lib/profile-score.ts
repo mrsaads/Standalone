@@ -34,7 +34,7 @@ export const SCORE_SECTIONS = [
   { id: "keywords", label: "Niche focus and keywords", max: 5, needs: "overview" },
   { id: "cta", label: "Closing invitation", max: 5, needs: "overview" },
 ] as const;
-export type SectionId = (typeof SCORE_SECTIONS)[number]["id"];
+export type SectionId = (typeof SCORE_SECTIONS)[number]["id"] | "overview" | "skills" | "portfolio" | "certifications";
 const AI_SECTIONS = ["title", "hook", "flow", "proof", "keywords", "cta"] as const;
 type AiSectionId = (typeof AI_SECTIONS)[number];
 const OVERVIEW_SECTIONS: readonly AiSectionId[] = ["hook", "flow", "proof", "keywords", "cta"];
@@ -346,7 +346,7 @@ export class ScoringError extends Error {
   constructor(message: string, public diagnostics: Record<string, unknown> = {}) { super(message); }
 }
 
-export async function callScorer(prompt: string, signalMs = 60000): Promise<string> {
+export async function callScorer(prompt: string, signalMs = 60000, system = SCORING_INSTRUCTIONS): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new ScoringError("AI_NOT_CONFIGURED");
   // A free, public, high-volume check: the small model by default. Override with
@@ -370,7 +370,7 @@ export async function callScorer(prompt: string, signalMs = 60000): Promise<stri
       body: JSON.stringify({
         model,
         max_tokens: 2000,
-        system: SCORING_INSTRUCTIONS,
+        system,
         messages: [{ role: "user", content: prompt }],
         output_config: { effort },
       }),
