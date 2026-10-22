@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getCurrentUser } from "@/lib/auth";
-import { upworkApiEnabled } from "@/lib/upwork-api";
-import { upworkMcpEnabled } from "@/lib/upwork-mcp-auth";
 import { breadcrumbSchema } from "@/lib/marketing/schema";
 import { OG_IMAGES, SITE_NAME } from "@/lib/marketing/site";
 import { SiteNav } from "@/app/marketing/site-nav";
@@ -45,7 +43,7 @@ export default async function ProfileScorePage() {
           <p className="ix-m-lede">Paste your Upwork profile link and connect your account. We assess your title, overview, skills, portfolio and certifications, then show your score and the three changes that would raise it most.</p>
         </header>
         <section className="ix-ps-section" aria-label="Score your profile">
-          <ScoreForm signedIn={Boolean(user)} upworkConnect={upworkMcpEnabled() || upworkApiEnabled()} />
+          <ScoreForm signedIn={Boolean(user)} upworkConnect />
         </section>
       </main>
       <SiteFooter />
