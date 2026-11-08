@@ -3,7 +3,7 @@
 // The database needs drizzle/0009_lead_whatsapp_country_page.sql applied.
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
-import { normalizePhone, normalizeUpworkLink, saveLead, validateLead } from "../../lib/leads";
+import { normalizeLinkedInLink, normalizePhone, normalizeProfileLink, normalizeUpworkLink, normalizeWebsiteLink, saveLead, validateLead } from "../../lib/leads";
 
 let pass = 0, fail = 0;
 const assert = (ok: unknown, label: string) => { if (ok) { pass++; console.log(`  ✓ ${label}`); } else { fail++; console.log(`  ✗ ${label}`); } };
@@ -47,6 +47,32 @@ section("B. Upwork profile link");
   assert(!normalizeUpworkLink("https://evil.example/freelancers/~01abc").ok, "another site → refused");
   assert(!normalizeUpworkLink("https://www.upwork.com.evil.example/freelancers/x").ok, "a look-alike host → refused");
   assert(!normalizeUpworkLink("javascript:alert(1)").ok, "javascript: → refused");
+}
+
+section("B2. LinkedIn profile link (the LinkedIn services use the same form)");
+{
+  const bare = normalizeLinkedInLink("www.linkedin.com/in/ayesha-khan");
+  assert(bare.ok && bare.value === "https://www.linkedin.com/in/ayesha-khan", "a LinkedIn link pasted without https:// is accepted and stored WITH the scheme");
+  assert(normalizeLinkedInLink("https://linkedin.com/company/improvexus/").ok, "a company page is accepted");
+  assert(normalizeLinkedInLink("https://pk.linkedin.com/in/ayesha-khan").ok, "a country subdomain is accepted");
+  assert(!normalizeLinkedInLink("https://www.linkedin.com/").ok, "the LinkedIn home page is not a profile → refused");
+  assert(!normalizeLinkedInLink("https://www.linkedin.com/feed/").ok, "the feed is not a profile → refused");
+  assert(!normalizeLinkedInLink("http://www.linkedin.com/in/x").ok, "plain http → refused");
+  assert(!normalizeLinkedInLink("https://www.linkedin.com.evil.example/in/x").ok, "a look-alike host → refused");
+  assert(!normalizeLinkedInLink("https://evillinkedin.com/in/x").ok, "a host that only ends in linkedin.com → refused");
+  assert(normalizeProfileLink("https://www.upwork.com/freelancers/~01abc").ok && normalizeProfileLink("https://www.linkedin.com/in/x").ok, "the form accepts either an Upwork or a LinkedIn profile");
+  const wrong = normalizeProfileLink("https://www.linkedin.com/feed/");
+  assert(!wrong.ok && /LinkedIn/.test(wrong.message), "a bad LinkedIn link gets the LinkedIn message, not the Upwork one");
+  const site = normalizeProfileLink("acmeshop.pk");
+  assert(site.ok && site.value === "https://acmeshop.pk/", "a business website is accepted (email-marketing enquiries) and stored with https://");
+  assert(normalizeWebsiteLink("https://shop.example.co.uk/products").ok, "a website on a multi-part domain with a path is accepted");
+  assert(!normalizeWebsiteLink("http://acmeshop.pk").ok, "plain http website → refused");
+  assert(!normalizeWebsiteLink("https://192.168.0.1/").ok && !normalizeWebsiteLink("https://localhost:3000").ok, "IP addresses and localhost → refused");
+  assert(!normalizeWebsiteLink("https://user:pass@acmeshop.pk").ok, "credentials in the link → refused");
+  const upworkHome = normalizeProfileLink("https://www.upwork.com/");
+  assert(!upworkHome.ok && /Upwork/.test(upworkHome.message), "the Upwork home page is still refused, with the Upwork message, and not taken as a website");
+  const viaForm = validateLead({ ...good(), profileLink: "linkedin.com/in/ayesha-khan" });
+  assert(viaForm.ok && viaForm.lead.profileLink === "https://linkedin.com/in/ayesha-khan", "a full enquiry with a LinkedIn link is accepted and stored with https://");
 }
 
 section("C. Every field is mandatory — enforced without a browser");

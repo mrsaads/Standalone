@@ -41,6 +41,14 @@ const nextConfig: NextConfig = {
   // custom Vite/vinext bundling. `next build` + `next start` is the whole
   // deploy story here.
   poweredByHeader: false,
+  // The two LinkedIn service pages of 2026-11-05 were merged into one flagship page. Permanent
+  // redirects so any link or search result pointing at the old addresses still lands somewhere real.
+  async redirects() {
+    return [
+      { source: "/services/linkedin-profile-optimization", destination: "/services/linkedin-growth-personal-brand", permanent: true },
+      { source: "/services/linkedin-content-outreach", destination: "/services/linkedin-growth-personal-brand", permanent: true },
+    ];
+  },
   async headers() {
     return [
       { source: "/:path*", headers: securityHeaders },

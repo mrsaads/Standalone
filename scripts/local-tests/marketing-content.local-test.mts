@@ -5,7 +5,8 @@
 // pages is silent: add a city without its note and you have published a near-duplicate page.
 import { COUNTRIES, cityIsIndexable, distanceKm } from "../../lib/marketing/locations";
 import { CITY_NOTES, WORK, cityNote } from "../../lib/marketing/city-notes";
-import { SERVICES } from "../../lib/marketing/services";
+import { SERVICES, getService } from "../../lib/marketing/services";
+import { FLAGSHIPS, HOW_WE_WORK, NEXT_STEPS } from "../../lib/marketing/flagships";
 import { fitDescription, fitTitle } from "../../lib/marketing/site";
 import { describeDifference } from "../../lib/marketing/time";
 import { HOME_FAQS } from "../../lib/marketing/home-faqs";
@@ -51,6 +52,16 @@ assert(fitTitle(["a".repeat(70), "b".repeat(65)]) === "b".repeat(65), "…and fa
 assert(fitDescription(["a".repeat(200), "b".repeat(150)]) === "b".repeat(150), "fitDescription does the same at 155 characters");
 assert(SERVICES.every(s => s.seoTitle.length <= 60 && s.seoDescription.length <= 160), "service titles and descriptions fit the search result");
 
+console.log("flagship service pages");
+assert(FLAGSHIPS.every(f => getService(f.slug)), `every flagship page belongs to a real service (${FLAGSHIPS.filter(f => !getService(f.slug)).map(f => f.slug).join(", ") || "all do"})`);
+assert(new Set(FLAGSHIPS.map(f => f.accent)).size === FLAGSHIPS.length, "each flagship has its own accent colour");
+assert(FLAGSHIPS.every(f => (getService(f.slug)?.problems.length ?? 0) === 4), "each flagship page has four problems (the 2 by 2 grid)");
+assert(FLAGSHIPS.every(f => f.system.steps.length === 4 && f.pillars.length === 3 && f.measures.length === 3), "each flagship has 4 system steps, 3 pillars and 3 measure columns");
+assert(SERVICES.length % 4 === 0, `the services grid fills whole rows of four (${SERVICES.length} services)`);
+assert(new Set(SERVICES.map(s => s.slug)).size === SERVICES.length, "no two services share a slug");
+const priced = FLAGSHIPS.flatMap(f => JSON.stringify(f).match(/(\$\s?\d|PKR|USD|per month|\/month)/g) ?? []);
+assert(priced.length === 0, `no prices on the public flagship pages (${priced.join(", ") || "none"})`);
+
 console.log("distance");
 const pk = COUNTRIES.find(c => c.slug === "pakistan")!;
 const lahore = pk.cities.find(c => c.slug === "lahore")!, karachi = pk.cities.find(c => c.slug === "karachi")!, gujranwala = pk.cities.find(c => c.slug === "gujranwala")!;
@@ -74,6 +85,15 @@ const copy: string[] = [
   ...COUNTRIES.flatMap(c => c.context),
   ...Object.values(CITY_NOTES).map(n => n.scene),
   ...Object.values(WORK).flatMap(w => [w.label, w.short, w.screen, w.open]),
+  ...FLAGSHIPS.flatMap(f => [
+    ...f.heroPoints, f.example.label, f.example.before, f.example.after, f.example.beforeTag, f.example.afterTag, f.quote,
+    f.system.title, f.system.intro, ...f.system.steps.flatMap(x => [x.name, x.body]), f.system.outcome.name, f.system.outcome.body,
+    ...f.pillars.flatMap(x => [x.title, x.body]), ...f.scope.flatMap(g => [g.title, ...g.items]),
+    ...(f.roadmap ?? []).flatMap(x => [x.when, x.name, x.body]), f.rhythmTitle, ...f.rhythm.flatMap(x => [x.when, x.body]),
+    ...f.measures.flatMap(m => [m.title, ...m.items]), f.safety.title, f.safety.body, f.freeCheck.title, f.freeCheck.body, f.freeCheck.cta,
+    ...NEXT_STEPS(f.freeCheck).flatMap(x => [x.title, x.body]),
+  ]),
+  HOW_WE_WORK.guarantee.title, HOW_WE_WORK.guarantee.body, ...HOW_WE_WORK.cards.flatMap(c => [c.title, c.body]),
 ];
 const hits = (pattern: RegExp) => copy.filter(text => pattern.test(text)).map(text => text.slice(0, 50));
 const dashes = hits(/[\u2014\u2013\u00b7]/);
@@ -91,6 +111,7 @@ const pageFiles = [
   "app/services/page.tsx", "app/services/[slug]/page.tsx", "app/upwork-bidding-agency/page.tsx", "app/upwork-bidding-agency/[country]/page.tsx",
   "app/upwork-bidding-agency/[country]/[city]/page.tsx", "app/opengraph-image.tsx", "lib/marketing/site.ts",
   "app/profile-score/page.tsx", "app/profile-score/score-form.tsx", "lib/profile-score.ts",
+  "app/marketing/flagship.tsx", "lib/marketing/flagships.ts",
 ];
 const marked: string[] = [];
 for (const file of pageFiles) {

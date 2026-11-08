@@ -6,9 +6,6 @@ OWN profile, and Upwork sends them back. No link is pasted, nothing is scraped, 
 browser session is held. It is switched off until an Upwork API key exists
 (`UPWORK_API_CLIENT_ID` / `UPWORK_API_CLIENT_SECRET`).
 
-The browser worker described in `docs/upwork-browser.md` is a different, unapproved route (see below)
-and is untouched by this feature.
-
 ## Status, in three columns
 
 **Documentation findings supplied with the implementation (2026-10-16)**

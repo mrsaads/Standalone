@@ -1,5 +1,4 @@
 import { referenceValid } from "./audit-preview";
-import { captureHtml, fetchBrowserProfile } from "./upwork-browser";
 
 // Strips tags/scripts/styles and decodes the handful of entities Upwork's markup actually uses,
 // producing the same plain-text shape the paste/upload flows already work with. Shared by the
@@ -85,7 +84,7 @@ async function readCapped(response: Response, capBytes: number): Promise<string 
   return new TextDecoder().decode(bytes);
 }
 
-// Uses the configured signed-in worker first. Without a worker, fetches a public profile URL
+// Fetches a public profile URL
 // with the constraints an untrusted-target fetch needs:
 // bounded timeout, bounded response size, redirects followed manually (not via `redirect: "follow"`)
 // so a redirect can never carry the request off upwork.com — the SSRF shape that a naive follow-any
@@ -93,15 +92,10 @@ async function readCapped(response: Response, capBytes: number): Promise<string 
 // meta tags (the public profile score reads og:description and the rate from them) can have it;
 // fetchUpworkProfile below turns it into plain text for the audit flow.
 export type PageFetchResult =
-  | { ok: true; html: string; overview?: string; text?: string }
+  | { ok: true; html: string }
   | { ok: false; outcome: "blocked" | "unavailable" | "timeout" | "parse_failed" | "invalid"; message: string };
 
 export async function fetchUpworkPage(rawUrl: string): Promise<PageFetchResult> {
-  if (process.env.UPWORK_BROWSER_URL) {
-    const result = await fetchBrowserProfile(rawUrl);
-    if (!result.ok) return result;
-    return { ok: true, html: captureHtml(result.capture), overview: result.capture.overview, text: result.capture.text };
-  }
   if (!rawUrl.trim() || !referenceValid(rawUrl)) {
     return { ok: false, outcome: "invalid", message: "Use a valid HTTPS Upwork freelancer profile link." };
   }
@@ -155,11 +149,10 @@ export async function fetchUpworkPage(rawUrl: string): Promise<PageFetchResult> 
 export async function fetchUpworkProfile(rawUrl: string): Promise<ProfileFetchOutcome> {
   const page = await fetchUpworkPage(rawUrl);
   if (!page.ok) return { outcome: page.outcome, message: page.message };
-  const text = (page.text ?? decodeHtml(page.html)).slice(0, MAX_TEXT_CHARS);
+  const text = decodeHtml(page.html).slice(0, MAX_TEXT_CHARS);
   if (isBlockedText(text)) {
     return { outcome: "blocked", message: "Upwork showed a sign-in or verification page instead of the profile. Paste the profile text or upload a document instead." };
   }
-  if (page.overview && page.text) return { outcome: "success", text };
   if (text.length < 200) {
     return { outcome: "unavailable", message: "Upwork returned a page with no readable profile content. Paste the profile text or upload a document instead." };
   }
@@ -279,5 +272,5 @@ export async function fetchPublicProfileSnapshot(rawUrl: string): Promise<Public
   if (!snapshot.title && snapshot.jss === null && snapshot.totalJobs === null) {
     return { ok: false, outcome: "parse_failed", message: "The profile page did not contain readable profile details." };
   }
-  return { ok: true, snapshot, overview: page.overview };
+  return { ok: true, snapshot };
 }

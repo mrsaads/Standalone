@@ -1,6 +1,7 @@
-// The six things on the landing page's "What we help with" grid, each with its own strategy screen
-// at /services/<slug>. One source for the tile, the page, the sitemap and the structured data, so
-// they can never describe a service differently.
+// The services on the landing page's "What we help with" grid (Upwork and LinkedIn), each with its
+// own strategy screen at /services/<slug>. One source for the tile, the page, the sitemap, the footer
+// and the structured data, so they can never describe a service differently. The grid is four
+// columns wide, so keep the count a multiple of four (or two) to avoid a lone card on the last row.
 //
 // House rules for this copy:
 //   - Describe what we DO and what you GET. Never promise rankings, jobs, interviews or earnings.
@@ -9,7 +10,7 @@
 //   - Write the way a person on the team would say it out loud: contractions, plain words, no long
 //     dashes, no slogans. scripts/local-tests/marketing-content.local-test.mts checks the dashes.
 
-export type ServiceIcon = "audit" | "positioning" | "bidding" | "management" | "reporting" | "evidence";
+export type ServiceIcon = "audit" | "positioning" | "bidding" | "management" | "reporting" | "evidence" | "linkedin" | "email";
 
 export type Service = {
   slug: string;
@@ -30,7 +31,7 @@ export type Service = {
   faqs: { q: string; a: string }[];
 };
 
-export const SERVICES: Service[] = [
+const ALL_SERVICES: Service[] = [
   {
     slug: "upwork-profile-audit-optimization",
     icon: "audit",
@@ -104,8 +105,8 @@ export const SERVICES: Service[] = [
   {
     slug: "upwork-bidding-proposal-support",
     icon: "bidding",
-    title: "Job targeting & proposal support",
-    tile: "Help finding the right jobs and writing proposals that deal with the client's own problem.",
+    title: "Upwork bidding & proposal writing",
+    tile: "A dedicated bidder who picks the right jobs and writes every proposal to the client's own problem.",
     seoTitle: "Upwork Bidder & Proposal Writing Service",
     seoDescription:
       "Dedicated Upwork bidders for freelancers and agencies. We pick the right jobs, write each proposal to the client's brief and report results weekly.",
@@ -210,6 +211,86 @@ export const SERVICES: Service[] = [
     ],
   },
   {
+    slug: "linkedin-growth-personal-brand",
+    icon: "linkedin",
+    title: "LinkedIn growth & personal brand",
+    tile: "Profile, brand design, content and outreach run as one system, built to book calls with the clients you want.",
+    seoTitle: "LinkedIn Growth & Personal Branding Service",
+    seoDescription:
+      "LinkedIn growth for founders, consultants and agencies. Profile and brand design, posts in your voice and personal outreach that books qualified calls.",
+    eyebrow: "LINKEDIN GROWTH & PERSONAL BRAND",
+    h1: "Turn your LinkedIn profile into your best salesperson.",
+    intro:
+      "Profile optimization, brand design, content and outreach, run as one system. It's built to bring you booked calls with the right buyers, and we report on those calls next to the likes.",
+    problems: [
+      { title: "The headline is a job title", body: "\"Founder at X\" tells a buyer nothing. A headline should say who you help and what changes for them, in the words they search for." },
+      { title: "The About section reads like a CV", body: "Buyers want proof that you understand their problem. Your career history matters later, once they're already interested." },
+      { title: "Posting is irregular, so nobody remembers you", body: "Two strong posts a month won't build recall. A steady rhythm of useful content keeps you in front of buyers until they're ready." },
+      { title: "Outreach opens with a pitch", body: "A sales message to a stranger reads as spam and gets treated as spam. Give value first, then earn the ask." },
+    ],
+    strategy: [
+      { title: "Position", body: "We define your ideal client, your core offer and the one sentence you want to be known for. Everything else is built on it.", change: "Every part of your profile speaks to the same buyer." },
+      { title: "Design", body: "A banner, Featured graphics and a carousel system in one visual identity, so people recognise you in the feed before they read your name.", change: "You look like one brand wherever someone meets you." },
+      { title: "Publish and engage", body: "Posts written from your own stories and expertise, plus daily comments on prospects' posts, so they know you before you message them.", change: "Buyers have seen your thinking before you ever reach out." },
+      { title: "Reach out", body: "Sales Navigator lists built on buying signals, then a give, give, ask sequence that earns the right to a conversation.", change: "Qualified calls land on your calendar, tracked in a pipeline you can see." },
+    ],
+    deliverables: [
+      "A positioning and ideal-client workshop",
+      "A rewritten headline, About section, Experience and Featured section",
+      "A custom banner, Featured graphics and a personal brand guide",
+      "Posts and carousels written from a monthly interview with you",
+      "Daily engagement and personal outreach, with replies handled",
+      "A monthly report and strategy call",
+    ],
+    measures: ["Profile views, search appearances and follower growth from your target audience", "Impressions, engagement, saves and comments from ideal clients", "Connection acceptance, positive replies, calls booked and pipeline value"],
+    faqs: [
+      { q: "Will my posts sound like AI?", a: "No. Every post starts from your own interview and goes live only after you approve it. We'd sooner publish fewer, better posts than fill a calendar." },
+      { q: "Do I need LinkedIn Premium?", a: "Not for profile work or content. Outreach needs a Sales Navigator licence for targeting. It stays in your name, and we help you set it up." },
+      { q: "How soon will I see results?", a: "Profile views and engagement usually move in the first month. Pipeline results build over 60 to 90 days as content and outreach compound." },
+      { q: "Do you use automation tools?", a: "No. We don't use bots, engagement pods or any tool that breaks LinkedIn's rules, and outreach volume stays well inside the platform's limits. How we post and engage for you is agreed at kickoff." },
+    ],
+  },
+  {
+    slug: "email-marketing-cold-email",
+    icon: "email",
+    title: "Email marketing & cold email",
+    tile: "Deliverability, automated flows, campaigns and B2B cold email that reach the inbox and move people closer to buying.",
+    seoTitle: "Email Marketing & Cold Email Service",
+    seoDescription:
+      "Email marketing and B2B cold email. SPF, DKIM and DMARC fixed, automated flows, monthly campaigns and outbound from separate domains, measured in revenue.",
+    eyebrow: "EMAIL MARKETING & OUTBOUND",
+    h1: "Make the channel you own work as hard as the ones you rent.",
+    intro:
+      "Deliverability, automation, campaigns and B2B cold email, built so your emails reach the inbox and move people closer to buying. Social reach is rented. Your email list is yours, and we run it like the asset it is.",
+    problems: [
+      { title: "Emails land in spam, and nobody notices", body: "Gmail and Yahoo require bulk senders to authenticate with SPF, DKIM and DMARC, offer one-click unsubscribe and keep spam complaints under 0.3%. Miss these and inbox placement drops without warning." },
+      { title: "Open rates are misleading you", body: "Apple Mail Privacy Protection inflates opens, so a program judged on opens chases the wrong number. We report clicks, replies and revenue." },
+      { title: "There are no automations", body: "Welcome, abandoned-cart and win-back flows earn money every day without a new send. Most lists have none, or one built years ago and never touched." },
+      { title: "Every email goes to everyone", body: "One message to every subscriber means low relevance and rising unsubscribes. Segmenting by behaviour and purchase history fixes it." },
+    ],
+    strategy: [
+      { title: "Authenticate", body: "SPF, DKIM and DMARC configured and monitored, so mailbox providers trust your domain before the first campaign goes out.", change: "Your emails reach the inbox." },
+      { title: "Capture", body: "Signup forms, lead magnets and welcome offers that grow your list with people who actually want to hear from you.", change: "Your list grows with people likely to buy." },
+      { title: "Automate", body: "Welcome, nurture, abandoned-cart, post-purchase and win-back flows that sell while you work on something else.", change: "Your list earns money on days you don't send." },
+      { title: "Send and prospect", body: "Planned campaigns to your list. For B2B, cold sequences to verified decision-makers from separate, warmed domains.", change: "Sales from your list and meetings from outbound, reported in numbers that matter." },
+    ],
+    deliverables: [
+      "Domain authentication and a deliverability audit",
+      "Platform setup or migration, list clean-up and core segments",
+      "Core automations matched to your business model",
+      "A branded template system and signup form",
+      "Monthly campaigns, written, designed and tested",
+      "B2B cold email from separate, warmed domains, with replies handled",
+    ],
+    measures: ["Inbox placement, bounce rate and complaints kept under 0.1%", "Click-through, conversion, revenue per recipient and revenue from automations", "Reply rate, positive replies, meetings booked and cost per meeting"],
+    faqs: [
+      { q: "Which email platform should we use?", a: "The one that fits your model. Shopify stores usually do best on Klaviyo or Omnisend, and services and B2B on Brevo, Mailchimp or HubSpot. We recommend one in the audit." },
+      { q: "Can you email a list we bought?", a: "Not for marketing email. Bought lists damage deliverability and break consent rules. Outbound uses verified, targeted contacts from separate domains." },
+      { q: "How soon will we see results?", a: "Fixed authentication and new flows can lift results within weeks. Outbound needs 2 to 3 weeks of domain warm-up before the first sequence goes out." },
+      { q: "Can campaigns be in Urdu?", a: "Yes. Campaign copy can be in English or Urdu, whichever your audience reads." },
+    ],
+  },
+  {
     slug: "evidence-before-assumptions",
     icon: "evidence",
     title: "Evidence before assumptions",
@@ -245,6 +326,14 @@ export const SERVICES: Service[] = [
     ],
   },
 ];
+
+// The three flagship services lead the grid; the Upwork detail services and the method follow.
+const ORDER = [
+  "upwork-bidding-proposal-support", "linkedin-growth-personal-brand", "email-marketing-cold-email",
+  "upwork-profile-audit-optimization", "upwork-positioning-headline-overview", "upwork-profile-management",
+  "weekly-reporting-progress-reviews", "evidence-before-assumptions",
+];
+export const SERVICES: Service[] = [...ALL_SERVICES].sort((a, b) => ORDER.indexOf(a.slug) - ORDER.indexOf(b.slug));
 
 const BY_SLUG = new Map(SERVICES.map(s => [s.slug, s]));
 export const getService = (slug: string) => BY_SLUG.get(slug);

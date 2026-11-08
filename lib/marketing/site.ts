@@ -18,7 +18,7 @@ export function siteUrl(): string {
 // The date the public content was last materially edited. The sitemap reports this as <lastmod>;
 // search engines stop trusting lastmod when it changes on every build, so bump it by hand when the
 // copy on the public pages actually changes.
-export const CONTENT_UPDATED = "2026-10-02";
+export const CONTENT_UPDATED = "2026-11-05";
 
 /**
  * Search results cut a title off at roughly 60 characters. Given versions of a title from most to
@@ -38,7 +38,7 @@ export const absoluteUrl = (path: string) => `${siteUrl()}${path.startsWith("/")
 
 export const HOME_TITLE = "Upwork Bidding Agency & Dedicated Upwork Bidders | Improvexus";
 export const HOME_DESCRIPTION =
-  "Improvexus is an Upwork bidding agency. We give freelancers and agencies a dedicated Upwork bidder, a profile audit, proposal help and a weekly report.";
+  "Improvexus is an Upwork bidding agency. We give freelancers a dedicated bidder, profile audits and proposals, plus LinkedIn growth and email marketing.";
 
 // The social card (app/opengraph-image.tsx). A page that sets its own `openGraph` replaces the
 // inherited one wholesale, so every page spreads these in rather than losing its image.
@@ -56,6 +56,10 @@ export const CORE_KEYWORDS = [
   "Upwork profile optimization",
   "Upwork lead generation agency",
   "Upwork profile management",
+  "LinkedIn growth service",
+  "LinkedIn personal branding agency",
+  "email marketing agency",
+  "B2B cold email agency",
 ];
 
 // Where the team actually works from. Country is known; city/phone/email come from env when set.

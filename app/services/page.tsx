@@ -11,13 +11,13 @@ import { ServiceIcon } from "@/app/marketing/service-icon";
 import "@/app/landing.css";
 import "@/app/marketing/marketing.css";
 
-const DESCRIPTION = "What Improvexus does for Upwork freelancers and agencies, from profile audits and positioning to dedicated bidding, profile management and weekly reports.";
+const DESCRIPTION = "What Improvexus does for freelancers, founders and agencies: Upwork bidding and profile work, LinkedIn growth, email marketing and B2B cold email.";
 
 export const metadata: Metadata = {
-  title: "Upwork Bidding, Proposal & Profile Services",
+  title: "Upwork Bidding, LinkedIn & Email Marketing Services",
   description: DESCRIPTION,
   alternates: { canonical: "/services" },
-  openGraph: { type: "website", siteName: SITE_NAME, url: "/services", title: "Upwork Bidding, Proposal & Profile Services | Improvexus", description: DESCRIPTION, images: OG_IMAGES },
+  openGraph: { type: "website", siteName: SITE_NAME, url: "/services", title: "Upwork Bidding, LinkedIn & Email Marketing Services | Improvexus", description: DESCRIPTION, images: OG_IMAGES },
 };
 
 export default function ServicesIndexPage() {
@@ -38,11 +38,11 @@ export default function ServicesIndexPage() {
             <li aria-current="page">Services</li>
           </ol>
           <span className="ix-l-eyebrow">WHAT WE HELP WITH</span>
-          <h1>What we can help you with on Upwork.</h1>
-          <p className="ix-m-lede">There are six services here. Open any of them to see what usually goes wrong, what we do about it one step at a time and what changes in your working week.</p>
+          <h1>What we can help you with on Upwork, LinkedIn and email.</h1>
+          <p className="ix-m-lede">There are {SERVICES.length} services here, across Upwork, LinkedIn and email. Open any of them to see what usually goes wrong, what we do about it one step at a time and what changes in your working week.</p>
         </header>
         <section className="ix-l-section">
-          <div className="ix-l-grid-3">
+          <div className="ix-l-grid-4">
             {SERVICES.map(service => (
               <Link className="ix-l-card" key={service.slug} href={`/services/${service.slug}`}>
                 <span className="ix-l-icon"><ServiceIcon name={service.icon} /></span>

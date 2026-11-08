@@ -124,7 +124,7 @@ export function LeadForm({ source = "landing_general", sourcePage = "/", default
     else if (mobileNumber.replace(/\D/g, "").length < 4) found.mobile = "Enter your mobile number.";
     if (!waCountry) found.whatsapp = "Choose the country code for your WhatsApp number.";
     else if (waNumber.replace(/\D/g, "").length < 4) found.whatsapp = "Enter your WhatsApp number.";
-    if (!profileLink.trim()) found.profileLink = "Paste the link to your Upwork profile.";
+    if (!profileLink.trim()) found.profileLink = "Paste a link to your website, Upwork profile or LinkedIn profile.";
     if (goals.trim().length < GOALS_MIN) found.goals = `Tell us a bit more about what you want help with. We need at least ${GOALS_MIN} characters to give you a useful answer.`;
     if (!consent) found.consent = "Please agree to share your details so Improvexus can contact you.";
     return found;
@@ -222,8 +222,8 @@ export function LeadForm({ source = "landing_general", sourcePage = "/", default
       </div>
 
       <div className="ix-l-field">
-        <label htmlFor="lead-link">Upwork profile link</label>
-        <Input id="lead-link" required maxLength={500} inputMode="url" autoComplete="url" value={profileLink} onChange={e => { setProfileLink(e.target.value); clear("profileLink"); }} aria-invalid={!!fields.profileLink || undefined} aria-describedby={describe("profileLink")} placeholder="https://www.upwork.com/freelancers/…" />
+        <label htmlFor="lead-link">Website, Upwork or LinkedIn link</label>
+        <Input id="lead-link" required maxLength={500} inputMode="url" autoComplete="url" value={profileLink} onChange={e => { setProfileLink(e.target.value); clear("profileLink"); }} aria-invalid={!!fields.profileLink || undefined} aria-describedby={describe("profileLink")} placeholder="https://www.linkedin.com/in/… or https://yourbusiness.com" />
         {fieldError("profileLink")}
       </div>
 

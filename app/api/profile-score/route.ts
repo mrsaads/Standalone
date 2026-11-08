@@ -16,10 +16,6 @@ import { scoreContentProfile } from "@/lib/profile-content-score";
 // optionally their email and overview; we save them as a lead, read the public header of the
 // profile, score it (lib/profile-score.ts) and return the score on the same page.
 //
-// When UPWORK_BROWSER_URL is configured, capture uses the dedicated signed-in browser worker.
-// Failed or incomplete captures stop here without asking the visitor to copy profile text.
-// The legacy public reader remains available when no worker is configured.
-//
 // Every request costs a model call, so it is rate limited per browser, per network address and per
 // WhatsApp number, and the limiter FAILS CLOSED: if it can't be checked, nothing is scored. (The
 // enquiry form's limiter fails open because losing a lead is worse than a spam row; here the risk
@@ -37,7 +33,7 @@ const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 /** Up to three polite attempts, a few seconds apart. The visitor sees a progress list meanwhile. */
 async function readPublicProfile(url: string): Promise<PublicSnapshotResult> {
-  const pauses = process.env.UPWORK_BROWSER_URL ? [0] : [0, 3000, 6000];
+  const pauses = [0, 3000, 6000];
   let last: PublicSnapshotResult = { ok: false, outcome: "unavailable", message: "" };
   for (const pause of pauses) {
     if (pause) await sleep(pause);
@@ -144,10 +140,6 @@ export async function POST(request: Request) {
   if (!held && fetched.ok) snapshot = fetched.snapshot;
   else if (!fetched.ok) console.info("Profile score: public profile not readable", fetched.outcome);
 
-  if (!fetched.ok && process.env.UPWORK_BROWSER_URL) {
-    await giveBack();
-    return json({ code: "PROFILE_READER_UNAVAILABLE", error: fetched.message }, 503);
-  }
   const overview = fetched.ok && fetched.overview ? fetched.overview : req.overview;
 
   if (nothingToScore(snapshot, overview)) {

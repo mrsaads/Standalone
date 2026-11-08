@@ -34,7 +34,7 @@ export function LandingPage() {
         <div className="ix-l-hero-copy">
           <span className="ix-l-eyebrow">IMPROVEXUS UPWORK BIDDING AGENCY</span>
           <h1>An Upwork bidding agency that helps you win better work.</h1>
-          <p>We give freelancers and agencies a dedicated Upwork bidder, tidy up the profile, help with proposals and look after the account week to week, so you always know what the plan is.</p>
+          <p>We give freelancers and agencies a dedicated Upwork bidder, tidy up the profile, help with proposals and look after the account week to week, so you always know what the plan is. We also run LinkedIn growth and email marketing for people who want clients from those channels too.</p>
           <div className="ix-l-hero-ctas">
             <Link href="/profile-score" className="ix-l-btn-solid">Get my free profile score <ArrowRight size={15} style={{ display: "inline", marginLeft: 4, verticalAlign: -2 }} /></Link>
             <Link href="/signup?destination=audit" className="ix-l-btn-ghost" style={{ border: "1px solid var(--ix-l-border)" }}>Audit my profile</Link>
@@ -47,10 +47,10 @@ export function LandingPage() {
       <section className="ix-l-section" id="services">
         <div className="ix-l-section-head">
           <span>WHAT WE HELP WITH</span>
-          <h2>What we can help you with on Upwork.</h2>
+          <h2>What we can help you with on Upwork, LinkedIn and email.</h2>
           <p>Everything we suggest comes from what&apos;s on your own profile. We don&apos;t guess, and we don&apos;t promise rankings, jobs or earnings.</p>
         </div>
-        <div className="ix-l-grid-3">
+        <div className="ix-l-grid-4">
           {SERVICES.map(s => (
             <Link className="ix-l-card" key={s.slug} href={`/services/${s.slug}`}>
               <span className="ix-l-icon"><ServiceIcon name={s.icon} /></span>
@@ -130,7 +130,7 @@ export function LandingPage() {
             <div className="ix-l-section-head" style={{ marginBottom: 20 }}>
               <span>WORK WITH IMPROVEXUS</span>
               <h2>Let&apos;s work on your Upwork growth.</h2>
-              <p>Send us your profile link and tell us what you need help with. We&apos;ll read your profile and let you know whether managed support makes sense for you. You&apos;re also welcome to use the audit tool on your own.</p>
+              <p>Send us your website, Upwork or LinkedIn link and tell us what you need help with. We&apos;ll read it and let you know whether managed support makes sense for you. You&apos;re also welcome to use the audit tool on your own.</p>
             </div>
             <Accordion type="single" collapsible>
               {HOME_FAQS.map(f => (

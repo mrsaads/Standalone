@@ -66,6 +66,58 @@ export function normalizeUpworkLink(raw: unknown): { ok: true; value: string } |
   }
 }
 
+// ---- Upwork OR LinkedIn profile link -----------------------------------------------------------
+// The enquiry form serves the LinkedIn services as well, and someone asking for LinkedIn help may not
+// have an Upwork profile at all. A personal profile (/in/…) or a company page (/company/…) on
+// linkedin.com, www.linkedin.com or a country subdomain (pk.linkedin.com) is accepted, over https,
+// with the same scheme-prepending and look-alike-host protection as the Upwork check.
+export function normalizeLinkedInLink(raw: unknown): { ok: true; value: string } | { ok: false; message: string } {
+  const bad = { ok: false as const, message: "That doesn't look like a LinkedIn profile link. It should look like https://www.linkedin.com/in/your-name" };
+  if (typeof raw !== "string" || !raw.trim()) return { ok: false, message: "Paste the link to your LinkedIn profile." };
+  let value = raw.trim();
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = `https://${value}`;
+  try {
+    const url = new URL(value);
+    const hostOk = /^(?:(?:www|[a-z]{2})\.)?linkedin\.com$/.test(url.hostname);
+    const pathOk = /^\/(in|company)\/[^/]+/.test(url.pathname);
+    if (url.protocol !== "https:" || url.username || url.password || !hostOk || !pathOk) return bad;
+    return { ok: true, value: url.toString().slice(0, 500) };
+  } catch {
+    return bad;
+  }
+}
+
+// Email-marketing enquiries usually come from a business with a website and no Upwork or LinkedIn
+// profile worth reviewing, so any public https website is accepted too. Links that point AT Upwork
+// or LinkedIn still have to be real profiles (a pasted Upwork home page is a mistake worth catching,
+// not a website). IP addresses, localhost and bare hostnames are refused.
+export function normalizeWebsiteLink(raw: unknown): { ok: true; value: string } | { ok: false; message: string } {
+  const bad = { ok: false as const, message: "That doesn't look like a website address. It should look like https://yourbusiness.com" };
+  if (typeof raw !== "string" || !raw.trim()) return { ok: false, message: "Paste the link to your website." };
+  let value = raw.trim();
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) value = `https://${value}`;
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+    const publicHost = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$/.test(host) && !/(^|\.)(localhost|local|internal)$/.test(host);
+    if (url.protocol !== "https:" || url.username || url.password || !publicHost) return bad;
+    return { ok: true, value: url.toString().slice(0, 500) };
+  } catch {
+    return bad;
+  }
+}
+
+export function normalizeProfileLink(raw: unknown): { ok: true; value: string } | { ok: false; message: string } {
+  if (typeof raw !== "string" || !raw.trim()) return { ok: false, message: "Paste a link to your website, Upwork profile or LinkedIn profile." };
+  const upwork = normalizeUpworkLink(raw);
+  if (upwork.ok) return upwork;
+  const linkedin = normalizeLinkedInLink(raw);
+  if (linkedin.ok) return linkedin;
+  if (/upwork\.com/i.test(raw)) return upwork;
+  if (/linkedin\.com/i.test(raw)) return linkedin;
+  return normalizeWebsiteLink(raw);
+}
+
 const shape = z.object({
   submissionId: z.string().uuid(),
   name: z.string().max(100),
@@ -111,7 +163,7 @@ export function validateLead(input: unknown): { ok: true; lead: ValidLead; honey
   const whatsapp = normalizePhone(d.whatsappCountry, d.whatsappNumber, "WhatsApp number");
   if (!whatsapp.ok) fields.whatsapp = whatsapp.message;
 
-  const link = normalizeUpworkLink(d.profileLink);
+  const link = normalizeProfileLink(d.profileLink);
   if (!link.ok) fields.profileLink = link.message;
 
   const goals = d.goals.trim();

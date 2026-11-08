@@ -10,12 +10,15 @@ import { SiteFooter } from "@/app/marketing/site-footer";
 import { LeadForm } from "@/app/marketing/lead-form";
 import { JsonLd } from "@/app/marketing/json-ld";
 import { ServiceIcon } from "@/app/marketing/service-icon";
+import { FlagshipPage } from "@/app/marketing/flagship";
+import { getFlagship } from "@/lib/marketing/flagships";
 import "@/app/landing.css";
 import "@/app/marketing/marketing.css";
 
 // One screen per tile on the landing page's "What we help with" grid. Each answers the question a
 // visitor arrives with — "how would this actually improve my work?" — as a strategy in order:
 // what is going wrong now, what we do about it step by step, and what changes for them at each step.
+// The three flagship services (lib/marketing/flagships.ts) get the richer FlagshipPage layout instead.
 
 export const dynamicParams = false;
 export function generateStaticParams() {
@@ -40,6 +43,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
   if (!service) notFound();
   const path = `/services/${service.slug}`;
   const others = SERVICES.filter(s => s.slug !== service.slug);
+  const flagship = getFlagship(service.slug);
 
   return (
     <div className="ix-landing">
@@ -49,6 +53,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
         faqSchema(service.faqs),
       ]} />
       <SiteNav />
+      {flagship ? <FlagshipPage service={service} flagship={flagship} others={others} /> : (
       <main className="ix-m-main">
         <header className="ix-m-hero">
           <ol className="ix-m-crumbs" aria-label="Breadcrumb">
@@ -150,6 +155,7 @@ export default async function ServicePage({ params }: { params: Promise<{ slug: 
           </div>
         </section>
       </main>
+      )}
       <SiteFooter />
     </div>
   );

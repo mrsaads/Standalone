@@ -28,8 +28,8 @@ export function organizationSchema() {
     ...(BUSINESS.email ? { email: BUSINESS.email } : {}),
     ...(BUSINESS.sameAs.length ? { sameAs: BUSINESS.sameAs } : {}),
     areaServed: COUNTRIES.map(country => ({ "@type": "Country", name: country.name, identifier: country.iso })),
-    knowsAbout: ["Upwork", "Upwork bidding", "Upwork proposal writing", "Upwork profile optimization", "Freelance lead generation"],
-    serviceType: "Upwork bidding and profile management",
+    knowsAbout: ["Upwork", "Upwork bidding", "Upwork proposal writing", "Upwork profile optimization", "Freelance lead generation", "LinkedIn growth", "LinkedIn personal branding", "Email marketing", "B2B cold email"],
+    serviceType: "Upwork bidding, LinkedIn growth and email marketing",
   };
 }
 
