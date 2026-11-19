@@ -56,6 +56,10 @@ services:
         sync: false
       - key: OPENAI_API_KEY
         sync: false
+      - key: PROFILE_SCORE_MODEL
+        value: claude-sonnet-5-5
+      - key: PROFILE_SCORE_EFFORT
+        value: low
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: AI_REASONING_EFFORT
