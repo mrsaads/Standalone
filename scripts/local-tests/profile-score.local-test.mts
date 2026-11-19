@@ -189,3 +189,16 @@ check("prompt treats the profile as untrusted data and asks for JSON only", () =
 });
 
 console.log(`\n${passed} checks passed`);
+
+check("scores-only responses preserve the existing scoring weights", () => {
+  const points = { title: 18, hook: 10, flow: 11, proof: 7, keywords: 4, cta: 3 };
+  const compact = parseAiScores(JSON.stringify(Object.fromEntries(Object.entries(points).map(([id, points]) => [id, { points }]))));
+  const legacy = parseAiScores(JSON.stringify(Object.fromEntries(Object.entries(points).map(([id, points]) => [id, { points, note: "Feedback" }]))));
+  assert.ok(compact && legacy);
+  for (const id of Object.keys(points) as (keyof typeof points)[]) {
+    assert.equal(compact.sections[id].points, legacy.sections[id].points);
+    assert.equal(compact.sections[id].note, "");
+  }
+  assert.deepEqual(compact.topFlaws, []);
+  assert.deepEqual(compact.strengths, []);
+});

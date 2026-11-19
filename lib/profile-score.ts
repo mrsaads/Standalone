@@ -212,14 +212,12 @@ proof (max 10): specific evidence such as numbers, results, named platforms or i
 keywords (max 5): one clear niche. The main keyword and its close variants appear naturally three to six times, with the related tools named in context. A keyword dump or several unrelated services lowers this.
 cta (max 5): ends with one specific invitation, for example asking the client to send their store link or brief. A generic "contact me" earns 2.
 
-If the overview is "NOT PROVIDED", score only the title, set every overview section (hook, flow, proof, keywords, cta) to points 0 and note "", and base topFlaws on the title and the public stats in measured_facts.
+If the overview is "NOT PROVIDED", score only the title, set every overview section (hook, flow, proof, keywords, cta) to points 0 and note "".
 If the title is "NOT AVAILABLE", set title.points to 0 and title.note to "".
 
-Writing style for every note and flaw: plain everyday English, short sentences, addressed to the freelancer as "you". No em dashes or en dashes, no semicolons, no slashes between alternatives. No praise openers. Do not write a rewritten title or overview.
-
+Return only scores, with no notes, explanations, flaws, strengths, or rewritten text.
 Return exactly this JSON object and nothing else:
-{"title":{"points":0,"note":""},"hook":{"points":0,"note":""},"flow":{"points":0,"note":""},"proof":{"points":0,"note":""},"keywords":{"points":0,"note":""},"cta":{"points":0,"note":""},"topFlaws":["",""],"strengths":[""]}
-Each note is one sentence of at most 25 words saying what costs points. topFlaws: the three changes that would add the most points, each at most 14 words, most important first. strengths: one or two things that already work, at most 14 words each, or an empty array if nothing does.`;
+{"title":{"points":0},"hook":{"points":0},"flow":{"points":0},"proof":{"points":0},"keywords":{"points":0},"cta":{"points":0}}`;
 
 export function buildScoringPrompt(title: string | null, overview: string, tm: TitleMetrics | null, om: OverviewMetrics | null, s: PublicProfileSnapshot | null) {
   const facts = {
@@ -235,7 +233,7 @@ export function buildScoringPrompt(title: string | null, overview: string, tm: T
 }
 
 // ---- model output ------------------------------------------------------------------------------
-const aiSection = z.object({ points: z.coerce.number(), note: z.string() }).passthrough();
+const aiSection = z.object({ points: z.coerce.number(), note: z.string().default("") }).passthrough();
 const aiShape = z.object({
   title: aiSection, hook: aiSection, flow: aiSection, proof: aiSection, keywords: aiSection, cta: aiSection,
   topFlaws: z.array(z.string()).default([]),
@@ -350,7 +348,7 @@ export async function callScorer(prompt: string, signalMs = 60000, system = SCOR
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new ScoringError("AI_NOT_CONFIGURED");
   // A free, public, high-volume check: the small model by default. Override with
-  // PROFILE_SCORE_MODEL (e.g. claude-sonnet-5-5) without a code change if the notes read too thin.
+  // PROFILE_SCORE_MODEL (e.g. claude-sonnet-5-5) without a code change.
   const model = process.env.PROFILE_SCORE_MODEL || "claude-haiku-5-5";
   const effort = process.env.PROFILE_SCORE_EFFORT || "low";
   const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
@@ -369,7 +367,7 @@ export async function callScorer(prompt: string, signalMs = 60000, system = SCOR
       },
       body: JSON.stringify({
         model,
-        max_tokens: 2000,
+        max_tokens: 400,
         system,
         messages: [{ role: "user", content: prompt }],
         output_config: { effort },
