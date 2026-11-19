@@ -6,11 +6,14 @@ import { absoluteUrl } from "@/lib/marketing/site";
 // not to fetch a URL; it does not stop one that is linked from elsewhere from being listed.
 export default function robots(): MetadataRoute.Robots {
   return {
-    rules: [{
-      userAgent: "*",
-      allow: "/",
-      disallow: ["/api/", "/admin", "/audits", "/audit", "/portal", "/client-portal", "/account", "/notifications", "/auth/", "/verify", "/reset-password"],
-    }],
+    // Repeat exclusions for named agents: specific groups do not inherit the wildcard group.
+    rules: ["*", "Googlebot", "bingbot", "OAI-SearchBot", "ChatGPT-User", "GPTBot",
+      "Claude-SearchBot", "Claude-User", "ClaudeBot", "PerplexityBot", "Perplexity-User"]
+      .map(userAgent => ({
+        userAgent,
+        allow: "/",
+        disallow: ["/api/", "/admin", "/audits", "/audit", "/portal", "/client-portal", "/account", "/notifications", "/auth/", "/login", "/signup", "/verify", "/reset-password"],
+      })),
     sitemap: absoluteUrl("/sitemap.xml"),
   };
 }
