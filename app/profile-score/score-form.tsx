@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
-import { ArrowRight, ChevronDown, Link2, CircleAlert, CircleCheck, CircleDashed, FileSearch, LoaderCircle, Lock, MessageCircle, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronDown, Link2, CircleAlert, CircleCheck, CircleDashed, LoaderCircle, MessageCircle, Sparkles } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,13 +36,13 @@ const UPWORK_NOTICES: Record<string, string> = {
 const PENDING_KEY = "ix_ps_pending";
 type Pending = { waCountry: string; waNumber: string; email: string; consent: boolean; savedAt: number };
 
-export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = false }: { signedIn: boolean; automaticImport?: boolean; upworkConnect?: boolean }) {
+export function ScoreForm({ automaticImport = false, upworkConnect = false }: { signedIn: boolean; automaticImport?: boolean; upworkConnect?: boolean }) {
   const [profileUrl, setProfileUrl] = useState("");
   const [waCountry, setWaCountry] = useState("");
   const [waNumber, setWaNumber] = useState("");
   const [email, setEmail] = useState("");
   const [overview, setOverview] = useState("");
-  const [showOverview, setShowOverview] = useState(false);
+  const [showOverview, setShowOverview] = useState(true);
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState("");
   const [mounted, setMounted] = useState(false);
@@ -166,7 +165,6 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
 
   const fieldError = (key: ScoreFieldKey) => fields[key] ? <p className="ix-l-field-error" role="alert" id={`ps-${key}-error`}>{fields[key]}</p> : null;
   const describe = (key: ScoreFieldKey) => (fields[key] ? `ps-${key}-error` : undefined);
-  const auditHref = signedIn ? "/audits" : "/signup?next=%2Faudits";
 
   return (
     <div className="ix-ps-layout">
@@ -203,11 +201,11 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
 
         {!automaticImport && !connectedReady && <div className={`ix-ps-optional ${showOverview ? "is-open" : ""}`}>
           <button type="button" className="ix-ps-optional-toggle" aria-expanded={showOverview} aria-controls="ps-overview-panel" onClick={() => (showOverview ? setShowOverview(false) : openOverview())}>
-            <Sparkles size={15} /> Add your overview for a fuller score <span>optional</span> <ChevronDown size={15} className="ix-ps-chevron" />
+            <Sparkles size={15} /> Copy and paste your profile overview <ChevronDown size={15} className="ix-ps-chevron" />
           </button>
           {showOverview && (
             <div className="ix-l-field" id="ps-overview-panel">
-              <p className="ix-l-field-help">Connect Upwork to import all five profile sections, or paste your overview here for a more complete score without connecting.</p>
+              <p className="ix-l-field-help">Copy and paste your complete Upwork profile overview below for accurate overview scoring. Keep your profile link above so we can check your title and public stats. Connect Upwork to include skills, portfolio and certifications. Sections we cannot read are marked Not checked.</p>
               <Textarea id="ps-overview" ref={overviewRef} className="ix-ps-overview" maxLength={OVERVIEW_MAX} value={overview} disabled={busy}
                 onChange={e => { setOverview(e.target.value); clear("overview"); }}
                 aria-label="Your profile overview" aria-invalid={!!fields.overview || !overviewOk || undefined} aria-describedby={describe("overview") ?? "ps-overview-count"}
@@ -261,14 +259,14 @@ export function ScoreForm({ signedIn, automaticImport = false, upworkConnect = f
       </form>
 
       {result ? (
-        <ScoreResult result={result} auditHref={auditHref} signedIn={signedIn} innerRef={resultRef} automaticImport={automaticImport} onAddOverview={() => { setResult(null); openOverview(); }} />
+        <ScoreResult result={result} innerRef={resultRef} />
       ) : (
         <aside className="ix-ps-aside">
           <h2>What you get</h2>
           <ul>
             <li>A score out of 100, measured against the pattern top Upwork profiles follow.</li>
             <li>Points for your title, overview, skills, portfolio and certifications{automaticImport ? " imported from your connected profile." : "; connect Upwork to import every section."}</li>
-            <li>The three changes that would raise your score the most.</li>
+            <li>Your overall score and section stats out of 100.</li>
           </ul>
           <p className="ix-ps-aside-note"><MessageCircle size={14} /> We&apos;ll only use your WhatsApp number to talk to you about your score.</p>
         </aside>
@@ -282,11 +280,7 @@ function joinList(items: string[]) {
   return `${items.slice(0, -1).join(", ")} and ${items.at(-1)}`;
 }
 
-function StatLines({ lines }: { lines: { label: string; value: string }[] }) {
-  return <dl className="ix-ps-track">{lines.map(line => <div key={line.label}><dt>{line.label}</dt><dd>{line.value}</dd></div>)}</dl>;
-}
-
-function ScoreResult({ result, auditHref, signedIn, innerRef, onAddOverview, automaticImport }: { automaticImport: boolean; result: ProfileScoreResult; auditHref: string; signedIn: boolean; innerRef: React.RefObject<HTMLDivElement | null>; onAddOverview: () => void }) {
+function ScoreResult({ result, innerRef }: { result: ProfileScoreResult; innerRef: React.RefObject<HTMLDivElement | null> }) {
   const tone = result.score >= 85 ? "strong" : result.score >= 70 ? "good" : result.score >= 50 ? "mid" : "weak";
   return (
     <div className="ix-ps-result" ref={innerRef} tabIndex={-1} aria-labelledby="ps-score-heading">
@@ -295,56 +289,19 @@ function ScoreResult({ result, auditHref, signedIn, innerRef, onAddOverview, aut
           <span><b>{result.score}</b><small>out of 100</small></span>
         </div>
         <div>
-          <span className="ix-l-eyebrow">YOUR PROFILE SCORE</span>
-          <h2 id="ps-score-heading">{result.band}</h2>
-          {result.profile.title && <p className="ix-ps-title">&ldquo;{result.profile.title}&rdquo;</p>}
-          {result.assessedPoints < 100 && <p className="ix-ps-partial">Based on the {result.assessedPoints} of 100 points we could check.</p>}
+          <h2 id="ps-score-heading">Your profile score</h2>
+          {result.assessedPoints < 100 && <p className="ix-ps-partial">Based on the {result.assessedPoints} of 100 weighted points we could check.</p>}
         </div>
       </div>
-
-      {!automaticImport && !result.overviewScored && (
-        <button type="button" className="ix-ps-boost" onClick={onAddOverview}>
-          <Sparkles size={16} /> Add your overview to score the other {100 - result.assessedPoints} points <ArrowRight size={14} />
-        </button>
-      )}
-
       <ul className="ix-ps-sections">
-        {result.sections.map((section, i) => (
-          <li key={section.id} data-checked={section.checked ? "true" : "false"} style={{ ["--ix-ps-i" as string]: i }}>
-            <div className="ix-ps-row">
-              <span>{section.label}</span>
-              <b>{section.checked ? `${section.points} of ${section.max}` : "Not checked"}</b>
-            </div>
-            {section.checked && <div className="ix-ps-bar" aria-hidden="true"><i style={{ width: `${Math.round(((section.points ?? 0) / section.max) * 100)}%` }} /></div>}
-            {section.note && <p>{section.note}</p>}
-            {section.id === "track" && result.track && <StatLines lines={result.track.lines} />}
-            {section.id === "offer" && result.offer && <StatLines lines={result.offer.lines} />}
-          </li>
-        ))}
+        {result.sections.map((section, i) => {
+          const percent = Math.round(((section.points ?? 0) / section.max) * 100);
+          return <li key={section.id} data-checked={section.checked ? "true" : "false"} style={{ ["--ix-ps-i" as string]: i }}>
+            <div className="ix-ps-row"><span>{section.label}</span><b>{section.checked ? `${percent} / 100` : "Not checked"}</b></div>
+            {section.checked && <div className="ix-ps-bar" aria-hidden="true"><i style={{ width: `${percent}%` }} /></div>}
+          </li>;
+        })}
       </ul>
-
-      {result.topFlaws.length > 0 && (
-        <div className="ix-ps-flaws">
-          <h3>What would raise your score most</h3>
-          <ol>{result.topFlaws.map(f => <li key={f}>{f}</li>)}</ol>
-        </div>
-      )}
-      {result.strengths.length > 0 && (
-        <div className="ix-ps-strengths">
-          <h3>Already working</h3>
-          <ul>{result.strengths.map(s => <li key={s}>{s}</li>)}</ul>
-        </div>
-      )}
-
-      <div className="ix-ps-cta">
-        <span className="ix-ps-cta-icon"><FileSearch size={20} /></span>
-        <div>
-          <h3>Get to know every flaw on your profile</h3>
-          <p>This quick score doesn&apos;t look at your {joinList(result.notChecked.map(n => n.toLowerCase()))}. The full audit checks 23 points across your whole profile, explains each flaw with the evidence, and gives you a fix list in order of priority, with PDF and Word downloads.</p>
-          <Link href={auditHref} className="ix-l-btn-solid ix-ps-cta-btn">Generate my full audit report <ArrowRight size={15} /></Link>
-          {!signedIn && <p className="ix-ps-cta-note"><Lock size={13} /> You&apos;ll create a free account or <Link href="/login?next=%2Faudits">log in</Link> first, then go straight to the audit page.</p>}
-        </div>
-      </div>
     </div>
   );
 }
