@@ -347,9 +347,8 @@ export class ScoringError extends Error {
 export async function callScorer(prompt: string, signalMs = 60000, system = SCORING_INSTRUCTIONS): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new ScoringError("AI_NOT_CONFIGURED");
-  // A free, public, high-volume check: the small model by default. Override with
-  // PROFILE_SCORE_MODEL (e.g. claude-sonnet-5-5) without a code change.
-  const model = process.env.PROFILE_SCORE_MODEL || "claude-haiku-5-5";
+  // Keep the scores-only request on Sonnet 5.5 unless explicitly configured otherwise.
+  const model = process.env.PROFILE_SCORE_MODEL || "claude-sonnet-5-5";
   const effort = process.env.PROFILE_SCORE_EFFORT || "low";
   const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID;
   let response: Response;
@@ -368,6 +367,9 @@ export async function callScorer(prompt: string, signalMs = 60000, system = SCOR
       body: JSON.stringify({
         model,
         max_tokens: 400,
+        // Sonnet 5.5 otherwise spends this shared output budget on adaptive thinking.
+        ...(model === "claude-sonnet-5-5" && ["low", "medium", "high"].includes(effort)
+          ? { thinking: { type: "between_tools" } } : {}),
         system,
         messages: [{ role: "user", content: prompt }],
         output_config: { effort },
@@ -377,11 +379,11 @@ export async function callScorer(prompt: string, signalMs = 60000, system = SCOR
     const timeout = error instanceof Error && error.name === "TimeoutError";
     throw new ScoringError(timeout ? "timeout" : "network", { model });
   }
-  let result: { content?: Array<{ type?: string; text?: string }>; error?: { type?: string; message?: string } };
+  let result: { stop_reason?: string; content?: Array<{ type?: string; text?: string }>; error?: { type?: string; message?: string } };
   try { result = await response.json(); } catch { throw new ScoringError("invalid_response_body", { model, status: response.status }); }
   if (!response.ok) throw new ScoringError(result.error?.message || `status ${response.status}`, { model, status: response.status, type: result.error?.type, requestId: response.headers.get("request-id") });
   const text = result.content?.filter(p => p.type === "text").map(p => p.text ?? "").join("") ?? "";
-  if (!text) throw new ScoringError("empty_response", { model });
+  if (!text) throw new ScoringError("empty_response", { model, stopReason: result.stop_reason, contentTypes: result.content?.map(p => p.type) });
   return text;
 }
 

@@ -202,3 +202,27 @@ check("scores-only responses preserve the existing scoring weights", () => {
   assert.deepEqual(compact.topFlaws, []);
   assert.deepEqual(compact.strengths, []);
 });
+
+const { callScorer } = await import("../../lib/profile-score");
+const savedFetch = globalThis.fetch;
+const savedEnv = { key: process.env.ANTHROPIC_API_KEY, model: process.env.PROFILE_SCORE_MODEL, effort: process.env.PROFILE_SCORE_EFFORT };
+try {
+  process.env.ANTHROPIC_API_KEY = "local-test-only";
+  delete process.env.PROFILE_SCORE_MODEL;
+  delete process.env.PROFILE_SCORE_EFFORT;
+  globalThis.fetch = async (_url, init) => {
+    const body = JSON.parse(String(init?.body));
+    assert.equal(body.model, "claude-sonnet-5-5");
+    assert.deepEqual(body.thinking, { type: "between_tools" });
+    assert.equal(body.max_tokens, 400);
+    assert.equal(body.output_config.effort, "low");
+    return Response.json({ content: [{ type: "text", text: "scores" }], stop_reason: "end_turn" });
+  };
+  assert.equal(await callScorer("test"), "scores");
+  console.log("ok - Sonnet scores-only request avoids consuming output budget on thinking");
+} finally {
+  globalThis.fetch = savedFetch;
+  for (const [name, value] of [["ANTHROPIC_API_KEY", savedEnv.key], ["PROFILE_SCORE_MODEL", savedEnv.model], ["PROFILE_SCORE_EFFORT", savedEnv.effort]]) {
+    if (value === undefined) delete process.env[name!]; else process.env[name!] = value;
+  }
+}
