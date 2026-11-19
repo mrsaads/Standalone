@@ -91,7 +91,7 @@ services:
       # custom domain is connected; until then the onrender.com URL is used. See .env.example for
       # the other optional SEO settings (Search Console verification, business details).
       - key: NEXT_PUBLIC_SITE_URL
-        sync: false
+        value: https://www.improvexus.com
       - key: GOOGLE_SITE_VERIFICATION
         sync: false
       # APP_ORIGIN is NOT required here: Render sets RENDER_EXTERNAL_URL automatically on every

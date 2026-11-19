@@ -10,9 +10,12 @@ export const SITE_TAGLINE = "Upwork bidding agency";
 
 /** The public origin, without a trailing slash. Set NEXT_PUBLIC_SITE_URL once a custom domain is connected. */
 export function siteUrl(): string {
-  const raw = process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_ORIGIN || process.env.RENDER_EXTERNAL_URL || "https://standalone-jcy4.onrender.com";
+  const raw = process.env.NEXT_PUBLIC_SITE_URL || process.env.APP_ORIGIN || "https://www.improvexus.com";
   const withScheme = raw.startsWith("http") ? raw : `https://${raw}`;
-  return withScheme.replace(/\/+$/, "");
+  const normalized = withScheme.replace(/\/+$/, "");
+  // The hosting alias must not become the canonical identity of the public business.
+  return new URL(normalized).hostname === "standalone-jcy4.onrender.com"
+    ? "https://www.improvexus.com" : normalized;
 }
 
 // The date the public content was last materially edited. The sitemap reports this as <lastmod>;
